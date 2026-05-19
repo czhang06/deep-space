@@ -1,11 +1,30 @@
-import { FormEvent, Suspense, lazy, useEffect, useState } from "react";
+import { FormEvent, Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useCastleStore } from "./store/useCastleStore";
-import CitizenPanel from "./features/dashboard/CitizenPanel";
-import RecentActivityPanel from "./features/dashboard/RecentActivityPanel";
-import SimulationPanel from "./features/controls/SimulationPanel";
 import { DEFAULT_WORLD_FOCUS, type ActivityCategory, type ClassificationRule } from "./types/models";
 
 const CastleScene = lazy(() => import("./features/castle/CastleScene"));
+
+type ActiveDrawerPanel =
+  | "activity"
+  | "citizens"
+  | "projects"
+  | "rules"
+  | "tracker"
+  | "events"
+  | "setup"
+  | "simulation"
+  | null;
+
+const drawerPanels: Array<{ id: Exclude<ActiveDrawerPanel, null>; label: string; eyebrow: string }> = [
+  { id: "activity", label: "Activity", eyebrow: "Balance" },
+  { id: "citizens", label: "Citizens", eyebrow: "Districts" },
+  { id: "projects", label: "Projects", eyebrow: "Build" },
+  { id: "rules", label: "Rules", eyebrow: "Classify" },
+  { id: "tracker", label: "Tracker", eyebrow: "Live" },
+  { id: "events", label: "Events", eyebrow: "History" },
+  { id: "setup", label: "Setup", eyebrow: "Bridge" },
+  { id: "simulation", label: "Loop", eyebrow: "Control" }
+];
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -43,6 +62,23 @@ function toSlug(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 
+function FieldRow({
+  label,
+  value,
+  className = ""
+}: {
+  label: string;
+  value: string | number;
+  className?: string;
+}) {
+  return (
+    <div className={`cockpit-field-row ${className}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
 function App() {
   const meta = useCastleStore((state) => state.meta);
   const snapshot = useCastleStore((state) => state.snapshot);
@@ -52,11 +88,17 @@ function App() {
   const addRule = useCastleStore((state) => state.addRule);
   const deleteRule = useCastleStore((state) => state.deleteRule);
   const refresh = useCastleStore((state) => state.refresh);
+  const pauseSimulation = useCastleStore((state) => state.pauseSimulation);
+  const resumeSimulation = useCastleStore((state) => state.resumeSimulation);
   const [targetType, setTargetType] = useState<"app" | "domain">("domain");
   const [pattern, setPattern] = useState("");
   const [category, setCategory] = useState<ActivityCategory>("work");
   const [ruleFeedback, setRuleFeedback] = useState("");
   const [isSavingRule, setIsSavingRule] = useState(false);
+  const [activePanel, setActivePanel] = useState<ActiveDrawerPanel>(null);
+  const drawerRef = useRef<HTMLElement>(null);
+  const activeOpenerRef = useRef<HTMLButtonElement | null>(null);
+  const commandRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   useEffect(() => {
     void useCastleStore.getState().hydrate();
@@ -83,6 +125,29 @@ function App() {
       window.clearTimeout(timer);
     };
   }, [ruleFeedback]);
+
+  useEffect(() => {
+    if (!activePanel) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeDrawer();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.setTimeout(() => {
+      drawerRef.current
+        ?.querySelector<HTMLElement>("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])")
+        ?.focus();
+    }, 0);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activePanel]);
 
   const handleAddRule = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -143,6 +208,28 @@ function App() {
     await refresh();
   };
 
+  const handlePauseToggle = async () => {
+    if (snapshot?.isPaused) {
+      await resumeSimulation();
+      return;
+    }
+
+    await pauseSimulation();
+  };
+
+  const openDrawer = (panel: Exclude<ActiveDrawerPanel, null>) => {
+    activeOpenerRef.current = commandRefs.current[panel];
+    setActivePanel(panel);
+  };
+
+  const closeDrawer = () => {
+    const opener = activeOpenerRef.current;
+    setActivePanel(null);
+    window.setTimeout(() => {
+      opener?.focus();
+    }, 0);
+  };
+
   const quickDomain = snapshot?.quickRuleDomainTarget ?? "";
   const quickApp = snapshot?.quickRuleAppTarget ?? "";
   const activeOverride = snapshot?.activeOverrideSummary ?? "";
@@ -166,492 +253,107 @@ function App() {
   const forestTreeCount = clamp(11 - villageHouseCount + drifterCount, 5, 12);
   const wallTowerCount = clamp(1 + Math.floor(order / 30), 1, 4);
   const castleStage = snapshot?.castleStageLabel ?? "Founding keep";
-  const nextProjectDetail =
-    snapshot?.nextUnlockHint ?? "Builders are still surveying the next scene upgrade.";
   const nextUnlockProgress = snapshot?.nextUnlockProgress ?? 0;
   const projectFocus = snapshot?.worldFocus ?? DEFAULT_WORLD_FOCUS;
   const streakTone = snapshot?.currentStreakMomentumLabel ?? "Settling";
   const streakSummary = snapshot?.currentStreakSummary ?? "Unknown 0m in current context";
+  const drawerTitle = drawerPanels.find((panel) => panel.id === activePanel)?.label ?? "Details";
+  const activitySlices = [
+    { label: "Work", value: activity?.workMinutes ?? 0, tone: "work" },
+    { label: "Play", value: activity?.playMinutes ?? 0, tone: "play" },
+    { label: "Idle", value: activity?.idleMinutes ?? 0, tone: "idle" },
+    { label: "Unknown", value: activity?.unknownMinutes ?? 0, tone: "unknown" }
+  ];
 
-  return (
-    <main className="app-shell">
-      <section className="hero-card">
-        <div>
-          <p className="eyebrow">Tiny Kingdom</p>
-          <h1>Build a kingdom from your focus</h1>
-          <p className="hero-copy">
-            Your desktop activity now feeds a living castle scene: focused work raises
-            towers, momentum lights the ward, and the surrounding village reacts as
-            the day changes.
-          </p>
-        </div>
-
-        <div className="hero-meta">
-          <div className="meta-pill">{meta?.appName ?? "Tiny Kingdom"}</div>
-          <div className="meta-pill">{meta?.trackingMode ?? "starting"}</div>
-          <div className="meta-pill">{snapshot?.trackingStatusLabel ?? "Tracker starting"}</div>
-          <div className="meta-pill">{meta?.ruleCount ?? rules.length} rules</div>
-          <div className={`meta-pill ${snapshot?.browserBridgeToneClass ?? "status-badge--stale"}`}>
-            {snapshot?.browserBridgeLabel ?? "Extension not connected"}
+  const renderDrawerContent = () => {
+    if (activePanel === "activity") {
+      return (
+        <>
+          <div className="stacked-bar" aria-label="Activity balance">
+            {activitySlices.map((slice) => (
+              <span
+                className={`stacked-segment stacked-segment--${slice.tone}`}
+                key={slice.label}
+                style={{ width: `${totalTrackedMinutes > 0 ? (slice.value / totalTrackedMinutes) * 100 : 0}%` }}
+              />
+            ))}
           </div>
-          <div className="meta-pill">
-            {snapshot?.updatedAt
-              ? `Updated ${new Date(snapshot.updatedAt).toLocaleTimeString()}`
-              : "Waiting for sync"}
+          <div className="cockpit-drawer-grid">
+            {activitySlices.map((slice) => (
+              <article className="metric-card" key={slice.label}>
+                <span>{slice.label}</span>
+                <strong>{formatMinutes(slice.value)}</strong>
+              </article>
+            ))}
           </div>
-        </div>
-      </section>
-
-      <section className="content-grid single-column">
-        <section className="panel kingdom-layout-panel">
-          <div className="section-heading compact">
-            <div>
-              <p className="eyebrow">World Layout</p>
-              <h3>Central island build plan</h3>
-            </div>
-            <div className="progress-chip">{castleStage}</div>
-          </div>
-
-          <Suspense
-            fallback={
-              <div className="castle-canvas-frame castle-loading-frame">
-                <p className="eyebrow">Loading Kingdom View</p>
-                <strong>{castleStage}</strong>
-                <span>Preparing the 3D island scene...</span>
-              </div>
-            }
-          >
-            <CastleScene
-              snapshot={snapshot}
-              stageLabel={castleStage}
-              keepScale={keepScale}
-              islandDistrictCount={islandDistrictCount}
-              villageHouseCount={villageHouseCount}
-              wallTowerCount={wallTowerCount}
-              forestTreeCount={forestTreeCount}
-            />
-          </Suspense>
-
           <p className="panel-note">
-            The castle now follows your sketch direction: a keep growing across the
-            central island, surrounded by a moat, with village expansion pushing out
-            into the forest ring before the outer wall fills in.
+            Work grows the keep fastest, play invites rogues, and idle stretches bring drifters into the ring.
           </p>
+        </>
+      );
+    }
 
-          <div className="layout-reading-grid">
-            <article className="layout-reading-card">
-              <span>Viewpoint</span>
-              <strong>Southwest rampart corner</strong>
-              <p>
-                Rampart view looks into the stronghold from the wall corner, while
-                Plan view is the cleaner read for orientation.
-              </p>
-            </article>
-            <article className="layout-reading-card">
-              <span>Layout</span>
-              <strong>Keep, moat, far walls, outer village</strong>
-              <p>
-                The scene is organized as a central island castle with the north and
-                east walls visible beyond it and village growth pressing into the ring.
-              </p>
-            </article>
-            <article className="layout-reading-card">
-              <span>Build focus</span>
-              <strong>{snapshot?.nextUnlock ?? "Surveying next structure"}</strong>
-              <p>{nextProjectDetail}</p>
-            </article>
-          </div>
-
-          <article className="project-focus-card">
-            <div className="project-focus-card__header">
-              <div>
-                <p className="eyebrow">Scene Focus</p>
-                <h3>Where to look right now</h3>
-              </div>
-              <div className="project-focus-card__header-meta">
-                <div className="progress-chip">{nextUnlockProgress}% ready</div>
-                <div className={`project-focus-card__status project-focus-card__status--${projectFocus.statusTone}`}>{projectFocus.statusLabel}</div>
-              </div>
-            </div>
-            <div className="project-focus-card__progress">
-              <div className="project-focus-card__progress-track" aria-hidden="true">
-                <span
-                  className={`project-focus-card__progress-fill project-focus-card__progress-fill--${projectFocus.statusTone}`}
-                  style={{ width: `${nextUnlockProgress}%` }}
-                />
-              </div>
-              <p className="project-focus-card__status-detail">{projectFocus.statusDetail}</p>
-            </div>
-            <div className="project-focus-card__grid">
-              <div className="project-focus-card__item">
-                <span>Target area</span>
-                <strong>{projectFocus.area}</strong>
-              </div>
-              <div className="project-focus-card__item">
-                <span>Anchor landmark</span>
-                <strong>{projectFocus.anchorLabel}</strong>
-              </div>
-              <div className="project-focus-card__item">
-                <span>Start in</span>
-                <strong>{projectFocus.recommendedViewLabel}</strong>
-              </div>
-              <div className="project-focus-card__item">
-                <span>Why it matters</span>
-                <strong>{projectFocus.detail}</strong>
-              </div>
-              <div className="project-focus-card__item">
-                <span>Momentum</span>
-                <strong>{streakTone} streak</strong>
-              </div>
-              <div className="project-focus-card__item">
-                <span>Confirm in</span>
-                <strong>{projectFocus.secondaryViewLabel}</strong>
-              </div>
-            </div>
-            <p className="project-focus-card__storyline">{projectFocus.storyline}</p>
-            <p className="project-focus-card__confirmation">{projectFocus.confirmationDetail}</p>
-            <div className="project-focus-card__reading-strip">
-              {projectFocus.readingSteps.map((step, index) => (
-                <div className="project-focus-card__reading-step" key={step.key}>
-                  <span>{index + 1}. {step.title}</span>
-                  <strong>{step.label}</strong>
-                  <p>{step.detail}</p>
-                </div>
-              ))}
-            </div>
-            <p className="project-focus-card__atmosphere">
-              {snapshot?.worldAtmosphere ?? "The kingdom's broader atmosphere is still being interpreted."}
-            </p>
-          </article>
-
-          <div className="metric-grid">
+    if (activePanel === "citizens") {
+      return (
+        <>
+          <div className="cockpit-drawer-grid">
             <article className="metric-card">
-              <span>Castle stage</span>
-              <strong>{castleStage}</strong>
+              <span>Builders</span>
+              <strong>{builderCount}</strong>
             </article>
             <article className="metric-card">
-              <span>Forest expansion</span>
-              <strong>{villageHouseCount} homes</strong>
+              <span>Drifters</span>
+              <strong>{drifterCount}</strong>
             </article>
             <article className="metric-card">
-              <span>Wall readiness</span>
-              <strong>{wallTowerCount}/4 towers</strong>
-            </article>
-            <article className="metric-card">
-              <span>Wild ring</span>
-              <strong>{forestTreeCount} trees left</strong>
-            </article>
-            <article className="metric-card">
-              <span>Builder crew</span>
-              <strong>{builderCount} builders</strong>
-            </article>
-            <article className="metric-card">
-              <span>Drifters nearby</span>
-              <strong>{drifterCount} drifters</strong>
-            </article>
-            <article className="metric-card">
-              <span>Castle trouble</span>
-              <strong>{rogueCount} rogues</strong>
-            </article>
-          </div>
-        </section>
-
-        <section className="panel">
-          <div className="section-heading compact">
-            <div>
-              <p className="eyebrow">Activity Balance</p>
-              <h3>How today is shaping the kingdom</h3>
-            </div>
-            <div className="progress-chip">
-              {activity?.dominantCategory ?? "unknown"}
-            </div>
-          </div>
-
-          <div className="stacked-bar">
-            <span
-              className="stacked-segment stacked-segment--work"
-              style={{ width: `${totalTrackedMinutes > 0 ? (activity?.workMinutes ?? 0) / totalTrackedMinutes * 100 : 0}%` }}
-            />
-            <span
-              className="stacked-segment stacked-segment--play"
-              style={{ width: `${totalTrackedMinutes > 0 ? (activity?.playMinutes ?? 0) / totalTrackedMinutes * 100 : 0}%` }}
-            />
-            <span
-              className="stacked-segment stacked-segment--idle"
-              style={{ width: `${totalTrackedMinutes > 0 ? (activity?.idleMinutes ?? 0) / totalTrackedMinutes * 100 : 0}%` }}
-            />
-            <span
-              className="stacked-segment stacked-segment--unknown"
-              style={{ width: `${totalTrackedMinutes > 0 ? (activity?.unknownMinutes ?? 0) / totalTrackedMinutes * 100 : 0}%` }}
-            />
-          </div>
-
-          <div className="metric-grid">
-            <article className="metric-card">
-              <span>Work time</span>
-              <strong>{formatMinutes(activity?.workMinutes)}</strong>
-            </article>
-            <article className="metric-card">
-              <span>Play time</span>
-              <strong>{formatMinutes(activity?.playMinutes)}</strong>
-            </article>
-            <article className="metric-card">
-              <span>Idle time</span>
-              <strong>{formatMinutes(activity?.idleMinutes)}</strong>
-            </article>
-            <article className="metric-card">
-              <span>Unsorted</span>
-              <strong>{formatMinutes(activity?.unknownMinutes)}</strong>
-            </article>
-          </div>
-
-          <p className="panel-note">
-            Work grows the keep fastest, play invites rogues, and long idle stretches
-            bring drifters into the ring around the castle.
-          </p>
-        </section>
-
-        <CitizenPanel />
-
-        <SimulationPanel />
-
-        <section className="panel">
-          <div className="section-heading compact">
-            <div>
-              <p className="eyebrow">Current Activity</p>
-              <h3>Live state</h3>
-            </div>
-            <div className="progress-chip">
-              Build {snapshot?.buildProgress ?? 0}%
-            </div>
-          </div>
-
-          <div className="status-list">
-            <div className="status-row">
-              <span>Foreground app</span>
-              <strong>{snapshot?.currentAppName ?? "Waiting"}</strong>
-            </div>
-            <div className="status-row">
-              <span>Process name</span>
-              <strong>{snapshot?.currentProcessName || "No active process"}</strong>
-            </div>
-            <div className="status-row">
-              <span>Window title</span>
-              <strong>{snapshot?.currentWindowTitle || "No active title"}</strong>
-            </div>
-            <div className="status-row">
-              <span>Browser domain</span>
-              <strong>{snapshot?.currentBrowserDomain || "No browser context"}</strong>
-            </div>
-            <div className="status-row">
-              <span>Tracker state</span>
-              <strong>{snapshot?.trackingStatusLabel ?? "Tracker starting"}</strong>
-            </div>
-            <div className="status-row">
-              <span>Tracker detail</span>
-              <strong>{snapshot?.trackingStatusDetail ?? "Waiting for the desktop tracker to report its first stable observation."}</strong>
-            </div>
-            <div className="status-row">
-              <span>Browser bridge</span>
-              <strong className={`status-badge ${snapshot?.browserBridgeToneClass ?? "status-badge--stale"}`}>
-                {snapshot?.browserBridgeLabel ?? "Extension not connected"}
-              </strong>
-            </div>
-            <div className="status-row">
-              <span>Bridge freshness</span>
-              <strong>{snapshot?.browserBridgeDetail ?? "No browser events yet"}</strong>
-            </div>
-            <div className="status-row">
-              <span>Last browser event</span>
-              <strong>
-                {snapshot?.lastBrowserEventAt
-                  ? `${new Date(snapshot.lastBrowserEventAt).toLocaleTimeString()} via ${snapshot.lastBrowserEventBrowser || "browser"}`
-                  : "No browser events yet"}
-              </strong>
-            </div>
-            <div className="status-row">
-              <span>Browser category</span>
-              <strong>{snapshot?.currentBrowserCategory ?? "unknown"}</strong>
-            </div>
-            <div className="status-row">
-              <span>Current label</span>
-              <strong>{snapshot?.currentLabel ?? "Preparing tracker"}</strong>
-            </div>
-            <div className="status-row">
-              <span>Current streak</span>
-              <strong>{streakSummary}</strong>
-            </div>
-            <div className="status-row">
-              <span>Streak momentum</span>
-              <strong>{streakTone}</strong>
-            </div>
-            <div className="status-row">
-              <span>Classification source</span>
-              <strong>{snapshot?.classificationSourceLabel ?? "Waiting for data"}</strong>
-            </div>
-            <div className="status-row">
-              <span>Idle seconds</span>
-              <strong>{snapshot?.currentIdleSeconds ?? 0}</strong>
-            </div>
-          </div>
-
-          <article className={`kingdom-effect ${snapshot?.kingdomEffectAccentClass ?? "kingdom-effect--unknown"}`}>
-            <p className="eyebrow">Kingdom Effect</p>
-            <h4>{snapshot?.kingdomEffectTitle ?? "The Kingdom Is Watching"}</h4>
-            <p>{snapshot?.kingdomEffectBody ?? "Current activity is still being interpreted before it meaningfully shifts the kingdom."}</p>
-          </article>
-
-          <article className="tracker-reason-card">
-            <p className="eyebrow">Tracker Reasoning</p>
-            <strong>{snapshot?.classificationSourceLabel ?? "Waiting for data"}</strong>
-            <p>{trackerReason}</p>
-          </article>
-
-          {isLoading ? <p className="notice">Loading snapshot...</p> : null}
-          {error ? <p className="error-text">{error}</p> : null}
-          {ruleFeedback ? <p className="success-text">{ruleFeedback}</p> : null}
-          {activeOverride ? <p className="success-text">Active override: {activeOverride}</p> : null}
-
-          <div className="quick-actions">
-            <p className="panel-note">Quick classify what you are doing right now.</p>
-
-            {quickDomain ? (
-              <div className="quick-action-row">
-                <span>Current domain: {quickDomain}</span>
-                <div className="quick-action-buttons">
-                  <button
-                    className="secondary-button"
-                    disabled={isSavingRule}
-                    onClick={() => {
-                      void handleQuickAddRule("domain", quickDomain, "work");
-                    }}
-                    type="button"
-                  >
-                    Domain = Work
-                  </button>
-                  <button
-                    className="secondary-button"
-                    disabled={isSavingRule}
-                    onClick={() => {
-                      void handleQuickAddRule("domain", quickDomain, "play");
-                    }}
-                    type="button"
-                  >
-                    Domain = Play
-                  </button>
-                  <button
-                    className="secondary-button"
-                    disabled={isSavingRule}
-                    onClick={() => {
-                      void handleQuickAddRule("domain", quickDomain, "unknown");
-                    }}
-                    type="button"
-                  >
-                    Domain = Neutral
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {quickApp ? (
-              <div className="quick-action-row">
-                <span>Current app rule: {quickApp}</span>
-                <div className="quick-action-buttons">
-                  <button
-                    className="secondary-button"
-                    disabled={isSavingRule}
-                    onClick={() => {
-                      void handleQuickAddRule("app", quickApp, "work");
-                    }}
-                    type="button"
-                  >
-                    App = Work
-                  </button>
-                  <button
-                    className="secondary-button"
-                    disabled={isSavingRule}
-                    onClick={() => {
-                      void handleQuickAddRule("app", quickApp, "play");
-                    }}
-                    type="button"
-                  >
-                    App = Play
-                  </button>
-                  <button
-                    className="secondary-button"
-                    disabled={isSavingRule}
-                    onClick={() => {
-                      void handleQuickAddRule("app", quickApp, "unknown");
-                    }}
-                    type="button"
-                  >
-                    App = Neutral
-                  </button>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </section>
-
-        <section className="panel">
-          <div className="section-heading compact">
-            <div>
-              <p className="eyebrow">Kingdom Stats</p>
-              <h3>Simulation snapshot</h3>
-            </div>
-          </div>
-
-          <div className="metric-grid">
-            <article className="metric-card">
-              <span>Order</span>
-              <strong>{snapshot?.order ?? 0}</strong>
+              <span>Rogues</span>
+              <strong>{rogueCount}</strong>
             </article>
             <article className="metric-card">
               <span>Morale</span>
               <strong>{snapshot?.morale ?? 0}</strong>
             </article>
-            <article className="metric-card">
-              <span>Next unlock</span>
-              <strong>{snapshot?.nextUnlock ?? "Waiting"}</strong>
-            </article>
-            <article className="metric-card">
-              <span>Refresh cycle</span>
-              <strong>{meta?.cycleSeconds ?? 4}s</strong>
-            </article>
           </div>
-        </section>
-
-        <section className="panel">
-          <div className="section-heading compact">
-            <div>
-              <p className="eyebrow">Kingdom Projects</p>
-              <h3>What the builders are chasing next</h3>
-            </div>
-            <div className="progress-chip">{snapshot?.nextUnlock ?? "Waiting"}</div>
+          <div className="district-list">
+            {(snapshot?.districts ?? []).map((district) => (
+              <article className={`district-card district-card--${district.status}`} key={district.id}>
+                <div className="district-card__header">
+                  <strong>{district.name}</strong>
+                  <span>{district.status}</span>
+                </div>
+                <p>{district.detail}</p>
+              </article>
+            ))}
           </div>
+          <div className="citizen-duty-list">
+            {citizens.map((citizen) => (
+              <article className="citizen-duty-card" key={citizen.id}>
+                <div className="citizen-duty-card__header">
+                  <span className={`citizen-swatch citizen-swatch--${citizen.type}`} />
+                  <strong>{citizen.name}</strong>
+                  <span>{citizen.type}</span>
+                </div>
+                <p>{citizen.task}</p>
+                <div className="citizen-duty-card__meta">
+                  <span>{citizen.districtId}</span>
+                  <span>{citizen.mood}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </>
+      );
+    }
 
+    if (activePanel === "projects") {
+      return (
+        <>
           <div className="project-progress">
-            <div
-              className="project-progress__fill"
-              style={{ width: `${snapshot?.nextUnlockProgress ?? 0}%` }}
-            />
+            <div className="project-progress__fill" style={{ width: `${nextUnlockProgress}%` }} />
           </div>
-
-          <div className="status-list">
-            <div className="status-row">
-              <span>Next unlock</span>
-              <strong>{snapshot?.nextUnlock ?? "Waiting"}</strong>
-            </div>
-            <div className="status-row">
-              <span>Progress</span>
-              <strong>{snapshot?.nextUnlockProgress ?? 0}%</strong>
-            </div>
-          </div>
-
-          <p className="panel-note">
-            {snapshot?.nextUnlockHint ?? "Kingdom projects are still being calculated."}
-          </p>
-
+          <FieldRow label="Next unlock" value={snapshot?.nextUnlock ?? "Waiting"} />
+          <FieldRow label="Progress" value={`${nextUnlockProgress}%`} />
+          <p className="panel-note">{snapshot?.nextUnlockHint ?? "Kingdom projects are still being calculated."}</p>
           <div className="project-chip-list">
             {(snapshot?.unlockedStructures ?? []).map((structure) => (
               <span className="project-chip" key={structure}>
@@ -659,26 +361,15 @@ function App() {
               </span>
             ))}
           </div>
-
-          <p className="panel-note">
-            Unlocks now drive real world presentation, so new projects appear in the scene as the tracker earns them.
-          </p>
-
           <div className="roadmap-list">
             {(snapshot?.unlockRoadmap ?? []).map((item) => (
-              <article
-                className={`roadmap-card roadmap-card--${item.status}`}
-                key={`${item.name}-${toSlug(item.status)}`}
-              >
+              <article className={`roadmap-card roadmap-card--${item.status}`} key={`${item.name}-${toSlug(item.status)}`}>
                 <div className="roadmap-card__header">
                   <strong>{item.name}</strong>
                   <span>{item.metric === "order" ? "Order" : "Build"}</span>
                 </div>
                 <div className="project-progress">
-                  <div
-                    className="project-progress__fill"
-                    style={{ width: `${item.progress}%` }}
-                  />
+                  <div className="project-progress__fill" style={{ width: `${item.progress}%` }} />
                 </div>
                 <div className="roadmap-card__meta">
                   <span>{item.status}</span>
@@ -688,40 +379,16 @@ function App() {
               </article>
             ))}
           </div>
-        </section>
+        </>
+      );
+    }
 
-        <RecentActivityPanel />
-
-        <section className="panel">
-          <div className="section-heading compact">
-            <div>
-              <p className="eyebrow">Recent Events</p>
-              <h3>Tracker output</h3>
-            </div>
-          </div>
-
-          <div className="event-list">
-            {(snapshot?.eventLog ?? []).length === 0 ? (
-              <article className="event-card">Waiting for events.</article>
-            ) : (
-              snapshot?.eventLog.map((entry) => (
-                <article className="event-card" key={entry}>
-                  {entry}
-                </article>
-              ))
-            )}
-          </div>
-        </section>
-
-        <section className="panel">
-          <div className="section-heading compact">
-            <div>
-              <p className="eyebrow">Classification Rules</p>
-              <h3>Manual overrides</h3>
-            </div>
-          </div>
-
-          <form className="rules-form" onSubmit={handleAddRule}>
+    if (activePanel === "rules") {
+      return (
+        <>
+          {ruleFeedback ? <p className="success-text">{ruleFeedback}</p> : null}
+          {activeOverride ? <p className="success-text">Active override: {activeOverride}</p> : null}
+          <form className="rules-form cockpit-rules-form" onSubmit={handleAddRule}>
             <label className="rules-field">
               <span>Match type</span>
               <select value={targetType} onChange={(event) => setTargetType(event.target.value as "app" | "domain")}>
@@ -729,7 +396,6 @@ function App() {
                 <option value="app">App</option>
               </select>
             </label>
-
             <label className="rules-field rules-field--wide">
               <span>Pattern</span>
               <input
@@ -738,22 +404,41 @@ function App() {
                 placeholder={targetType === "domain" ? "youtube.com" : "discord"}
               />
             </label>
-
             <label className="rules-field">
               <span>Category</span>
-              <select value={category} onChange={(event) => setCategory(event.target.value as "work" | "play" | "idle" | "unknown")}>
+              <select value={category} onChange={(event) => setCategory(event.target.value as ActivityCategory)}>
                 <option value="work">Work</option>
                 <option value="play">Play</option>
                 <option value="idle">Idle</option>
                 <option value="unknown">Unknown</option>
               </select>
             </label>
-
             <button className="primary-button" disabled={isSavingRule} type="submit">
               {isSavingRule ? "Saving..." : "Save rule"}
             </button>
           </form>
-
+          <div className="quick-actions">
+            {quickDomain ? (
+              <div className="quick-action-row">
+                <span>Current domain: {quickDomain}</span>
+                <div className="quick-action-buttons">
+                  <button className="secondary-button" disabled={isSavingRule} onClick={() => void handleQuickAddRule("domain", quickDomain, "work")} type="button">Work</button>
+                  <button className="secondary-button" disabled={isSavingRule} onClick={() => void handleQuickAddRule("domain", quickDomain, "play")} type="button">Play</button>
+                  <button className="secondary-button" disabled={isSavingRule} onClick={() => void handleQuickAddRule("domain", quickDomain, "unknown")} type="button">Neutral</button>
+                </div>
+              </div>
+            ) : null}
+            {quickApp ? (
+              <div className="quick-action-row">
+                <span>Current app: {quickApp}</span>
+                <div className="quick-action-buttons">
+                  <button className="secondary-button" disabled={isSavingRule} onClick={() => void handleQuickAddRule("app", quickApp, "work")} type="button">Work</button>
+                  <button className="secondary-button" disabled={isSavingRule} onClick={() => void handleQuickAddRule("app", quickApp, "play")} type="button">Play</button>
+                  <button className="secondary-button" disabled={isSavingRule} onClick={() => void handleQuickAddRule("app", quickApp, "unknown")} type="button">Neutral</button>
+                </div>
+              </div>
+            ) : null}
+          </div>
           <div className="rules-list">
             {rules.length === 0 ? (
               <article className="event-card">No manual rules yet.</article>
@@ -762,51 +447,287 @@ function App() {
                 <article className="rule-row" key={rule.id}>
                   <div>
                     <strong>{rule.pattern}</strong>
-                    <p>
-                      {rule.targetType} {"->"} {rule.category}
-                    </p>
+                    <p>{rule.targetType} {"->"} {rule.category}</p>
                   </div>
-                  <button
-                    className="secondary-button"
-                    onClick={() => {
-                      void handleDeleteRule(rule.id);
-                    }}
-                    type="button"
-                  >
+                  <button className="secondary-button" onClick={() => void handleDeleteRule(rule.id)} type="button">
                     Delete
                   </button>
                 </article>
               ))
             )}
           </div>
+        </>
+      );
+    }
 
-          <p className="panel-note">
-            Domain rules override browser defaults. App rules match process name,
-            app name, or active window title.
-          </p>
-        </section>
+    if (activePanel === "tracker") {
+      return (
+        <>
+          <FieldRow label="Foreground app" value={snapshot?.currentAppName ?? "Waiting"} />
+          <FieldRow label="Process name" value={snapshot?.currentProcessName || "No active process"} />
+          <FieldRow label="Window title" value={snapshot?.currentWindowTitle || "No active title"} />
+          <FieldRow label="Browser domain" value={snapshot?.currentBrowserDomain || "No browser context"} />
+          <FieldRow label="Browser category" value={snapshot?.currentBrowserCategory ?? "unknown"} />
+          <FieldRow label="Current streak" value={streakSummary} />
+          <FieldRow label="Classification source" value={snapshot?.classificationSourceLabel ?? "Waiting for data"} />
+          <FieldRow label="Idle seconds" value={snapshot?.currentIdleSeconds ?? 0} />
+          <article className="tracker-reason-card">
+            <p className="eyebrow">Tracker Reasoning</p>
+            <strong>{snapshot?.classificationSourceLabel ?? "Waiting for data"}</strong>
+            <p>{trackerReason}</p>
+          </article>
+          {isLoading ? <p className="notice">Loading snapshot...</p> : null}
+          {error ? <p className="error-text">{error}</p> : null}
+        </>
+      );
+    }
 
-        <section className="panel">
-          <div className="section-heading compact">
-            <div>
-              <p className="eyebrow">Browser Setup</p>
-              <h3>Extension reminder</h3>
-            </div>
+    if (activePanel === "events") {
+      return (
+        <>
+          <div className="recent-activity-list">
+            {(snapshot?.recentActivity ?? []).length === 0 ? (
+              <article className="event-card">Waiting for tracked activity.</article>
+            ) : (
+              (snapshot?.recentActivity ?? []).slice(0, 6).map((entry) => (
+                <article className="recent-activity-card" key={`${entry.timestamp}-${entry.appName}`}>
+                  <div className="recent-activity-card__header">
+                    <strong>{entry.appName}</strong>
+                    <span>{entry.timestampLabel ?? "Unknown time"}</span>
+                  </div>
+                  <p>{entry.windowTitle || "No active window title recorded."}</p>
+                  {entry.label ? <p className="recent-activity-card__reason">{entry.label}</p> : null}
+                  <div className="recent-activity-card__meta">
+                    <span>{entry.categoryLabel ?? entry.category}</span>
+                    {entry.browserDomain ? <span>{entry.browserDomain}</span> : null}
+                    <span>{entry.sourceLabel ?? "Waiting for data"}</span>
+                    <span>Idle {entry.idleSeconds}s</span>
+                  </div>
+                </article>
+              ))
+            )}
           </div>
+          <div className="event-list">
+            {(snapshot?.eventLog ?? []).length === 0 ? (
+              <article className="event-card">Waiting for kingdom events.</article>
+            ) : (
+              snapshot?.eventLog.map((entry) => (
+                <article className="event-card" key={entry}>
+                  {entry}
+                </article>
+              ))
+            )}
+          </div>
+        </>
+      );
+    }
 
+    if (activePanel === "setup") {
+      return (
+        <>
+          <FieldRow label="Browser bridge" value={snapshot?.browserBridgeLabel ?? "Extension not connected"} />
+          <FieldRow label="Bridge freshness" value={snapshot?.browserBridgeDetail ?? "No browser events yet"} />
+          <FieldRow
+            label="Last browser event"
+            value={
+              snapshot?.lastBrowserEventAt
+                ? `${new Date(snapshot.lastBrowserEventAt).toLocaleTimeString()} via ${snapshot.lastBrowserEventBrowser || "browser"}`
+                : "No browser events yet"
+            }
+          />
           <p className="panel-note">
-            Browser domain tracking only works when the unpacked extension in
-            <strong> extension/chrome </strong>
-            is installed and enabled in Chrome.
+            Browser domain tracking only works when the unpacked extension in <strong>extension/chrome</strong> is installed and enabled in Chrome.
           </p>
+          <p className="panel-note">
+            If the browser field looks stale, reload the extension in <strong>chrome://extensions</strong> and make the tab active once.
+          </p>
+        </>
+      );
+    }
 
-          <p className="panel-note">
-            If the browser field looks stale, reload the extension in
-            <strong> chrome://extensions </strong>
-            and make the tab active once.
-          </p>
-        </section>
+    if (activePanel === "simulation") {
+      return (
+        <>
+          <FieldRow label="Loop state" value={snapshot?.isPaused ? "Paused" : "Running"} />
+          <FieldRow label="Simulation tick" value={`Every ${meta?.cycleSeconds ?? 4}s`} />
+          <FieldRow label="Tracker state" value={snapshot?.trackingStatusLabel ?? "Tracker starting"} />
+          <FieldRow label="Tracker detail" value={snapshot?.trackingStatusDetail ?? "Waiting for the desktop tracker."} />
+          <FieldRow label="Next project" value={snapshot?.nextUnlock ?? "Waiting"} />
+          <FieldRow label="Project progress" value={`${nextUnlockProgress}%`} />
+          <button className="primary-button" onClick={() => void handlePauseToggle()} type="button">
+            {snapshot?.isPaused ? "Resume simulation" : "Pause simulation"}
+          </button>
+          <div className="alert-list">
+            {(snapshot?.alerts ?? []).length === 0 ? (
+              <article className="alert-card alert-card--good">
+                <strong>Kingdom stable</strong>
+                <p>No urgent advisories at the moment.</p>
+              </article>
+            ) : (
+              snapshot?.alerts.map((alert) => (
+                <article className={`alert-card alert-card--${alert.severity}`} key={alert.code}>
+                  <strong>{alert.title}</strong>
+                  <p>{alert.detail}</p>
+                </article>
+              ))
+            )}
+          </div>
+        </>
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <main className="app-shell cockpit-shell">
+      <section className="cockpit-stage" aria-label="Tiny Kingdom cockpit">
+        <header className="cockpit-topbar">
+          <div>
+            <p className="eyebrow">Tiny Kingdom</p>
+            <h1>Build a kingdom from your focus</h1>
+          </div>
+          <div className="cockpit-topbar__status" aria-label="Current tracker summary">
+            <span>{meta?.appName ?? "Tiny Kingdom"}</span>
+            <span>{meta?.trackingMode ?? "starting"}</span>
+            <span className={snapshot?.browserBridgeToneClass ?? "status-badge--stale"}>
+              {snapshot?.browserBridgeLabel ?? "Extension not connected"}
+            </span>
+            <span>{snapshot?.updatedAt ? `Updated ${new Date(snapshot.updatedAt).toLocaleTimeString()}` : "Waiting for sync"}</span>
+          </div>
+        </header>
+
+        <div className="cockpit-main">
+          <aside className="cockpit-rail" aria-label="Open detail drawer">
+            {drawerPanels.map((panel) => (
+              <button
+                aria-controls="cockpit-detail-drawer"
+                aria-expanded={activePanel === panel.id}
+                className={`cockpit-rail-button ${activePanel === panel.id ? "is-active" : ""}`}
+                key={panel.id}
+                onClick={() => openDrawer(panel.id)}
+                ref={(node) => {
+                  commandRefs.current[panel.id] = node;
+                }}
+                type="button"
+              >
+                <span>{panel.eyebrow}</span>
+                <strong>{panel.label}</strong>
+              </button>
+            ))}
+          </aside>
+
+          <section className="cockpit-scene-panel">
+            <div className="cockpit-scene-header">
+              <div>
+                <p className="eyebrow">World Scene</p>
+                <h2>{castleStage}</h2>
+              </div>
+              <div className="cockpit-scene-header__actions">
+                <button className="secondary-button" onClick={() => openDrawer("projects")} type="button">
+                  Next: {snapshot?.nextUnlock ?? "Surveying"}
+                </button>
+                <button className="primary-button" onClick={() => void handlePauseToggle()} type="button">
+                  {snapshot?.isPaused ? "Resume" : "Pause"}
+                </button>
+              </div>
+            </div>
+
+            <Suspense
+              fallback={
+                <div className="castle-canvas-frame castle-loading-frame">
+                  <p className="eyebrow">Loading Kingdom View</p>
+                  <strong>{castleStage}</strong>
+                  <span>Preparing the 3D island scene...</span>
+                </div>
+              }
+            >
+              <CastleScene
+                snapshot={snapshot}
+                stageLabel={castleStage}
+                keepScale={keepScale}
+                islandDistrictCount={islandDistrictCount}
+                villageHouseCount={villageHouseCount}
+                wallTowerCount={wallTowerCount}
+                forestTreeCount={forestTreeCount}
+              />
+            </Suspense>
+          </section>
+
+          <aside className="cockpit-glance-panel" aria-label="Kingdom at a glance">
+            <article className={`cockpit-effect-card ${snapshot?.kingdomEffectAccentClass ?? "kingdom-effect--unknown"}`}>
+              <p className="eyebrow">Kingdom Effect</p>
+              <h3>{snapshot?.kingdomEffectTitle ?? "The Kingdom Is Watching"}</h3>
+              <p>{snapshot?.kingdomEffectBody ?? "Current activity is still being interpreted before it meaningfully shifts the kingdom."}</p>
+            </article>
+
+            <div className="cockpit-glance-grid">
+              <FieldRow label="Mode" value={prettifyCategory(snapshot?.currentCategory)} />
+              <FieldRow label="Tracker" value={snapshot?.trackingStatusLabel ?? "Starting"} />
+              <FieldRow label="Build" value={`${buildProgress}%`} />
+              <FieldRow label="Order" value={order} />
+              <FieldRow label="Next unlock" value={snapshot?.nextUnlock ?? "Waiting"} />
+              <FieldRow label="Streak" value={streakTone} />
+            </div>
+
+            <div className="cockpit-balance-card">
+              <div className="cockpit-balance-card__header">
+                <span>Today</span>
+                <strong>{activity?.dominantCategory ?? "unknown"}</strong>
+              </div>
+              <div className="stacked-bar" aria-hidden="true">
+                {activitySlices.map((slice) => (
+                  <span
+                    className={`stacked-segment stacked-segment--${slice.tone}`}
+                    key={slice.label}
+                    style={{ width: `${totalTrackedMinutes > 0 ? (slice.value / totalTrackedMinutes) * 100 : 0}%` }}
+                  />
+                ))}
+              </div>
+              <div className="cockpit-mini-metrics">
+                <span>Work {formatMinutes(activity?.workMinutes)}</span>
+                <span>Play {formatMinutes(activity?.playMinutes)}</span>
+                <span>Idle {formatMinutes(activity?.idleMinutes)}</span>
+              </div>
+            </div>
+
+            <article className="cockpit-focus-card">
+              <p className="eyebrow">Scene Focus</p>
+              <h3>{projectFocus.label}</h3>
+              <p>{projectFocus.spotlight}</p>
+              <div className="project-progress">
+                <div className={`project-progress__fill project-focus-card__progress-fill--${projectFocus.statusTone}`} style={{ width: `${nextUnlockProgress}%` }} />
+              </div>
+              <span>{projectFocus.statusLabel} · {nextUnlockProgress}%</span>
+            </article>
+          </aside>
+        </div>
       </section>
+
+      <div className={`cockpit-drawer-backdrop ${activePanel ? "is-open" : ""}`} aria-hidden={!activePanel} onClick={closeDrawer} />
+      {activePanel ? (
+        <aside
+          aria-labelledby="cockpit-drawer-title"
+          aria-modal="true"
+          className="cockpit-drawer is-open"
+          id="cockpit-detail-drawer"
+          ref={drawerRef}
+          role="dialog"
+        >
+          <div className="cockpit-drawer__header">
+            <div>
+              <p className="eyebrow">Detail Drawer</p>
+              <h2 id="cockpit-drawer-title">{drawerTitle}</h2>
+            </div>
+            <button className="secondary-button" onClick={closeDrawer} type="button">
+              Close
+            </button>
+          </div>
+          <div className="cockpit-drawer__body">
+            {renderDrawerContent()}
+          </div>
+        </aside>
+      ) : null}
     </main>
   );
 }

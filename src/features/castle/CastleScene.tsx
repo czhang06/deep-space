@@ -4041,6 +4041,337 @@ function WorldScene({
   );
 }
 
+function StylizedIslandBase({
+  mood,
+  active = false
+}: {
+  mood: ReturnType<typeof getSceneMood>;
+  active?: boolean;
+}) {
+  const rimColor = active ? "#6fa45f" : "#5e8e57";
+  const cliffColor = active ? "#537645" : "#405f3c";
+
+  return (
+    <group position={[0, -0.28, 0]}>
+      <mesh position={[0, -0.42, 0]} receiveShadow>
+        <cylinderGeometry args={[6.7, 7.4, 0.92, 12]} />
+        <meshStandardMaterial color={cliffColor} roughness={0.96} />
+      </mesh>
+      <mesh position={[0, 0.06, 0]} receiveShadow>
+        <cylinderGeometry args={[6.55, 6.9, 0.3, 12]} />
+        <meshStandardMaterial color={mood.outerLand} roughness={0.9} />
+      </mesh>
+      <mesh position={[0, 0.24, 0]} receiveShadow>
+        <cylinderGeometry args={[4.24, 4.42, 0.22, 12]} />
+        <meshStandardMaterial color={mood.innerLand} roughness={0.88} />
+      </mesh>
+      <mesh position={[0, 0.31, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[2.85, 3.48, 48]} />
+        <meshStandardMaterial color={mood.water} emissive={mood.waterEmissive} emissiveIntensity={0.28} roughness={0.52} />
+      </mesh>
+      {[0, Math.PI / 2, Math.PI, Math.PI * 1.5].map((rotation, index) => (
+        <mesh key={`stylized-bridge-${index}`} position={[Math.sin(rotation) * 3.16, 0.38, Math.cos(rotation) * 3.16]} rotation={[0, rotation, 0]} receiveShadow>
+          <boxGeometry args={[0.58, 0.12, 1.2]} />
+          <meshStandardMaterial color={index % 2 === 0 ? "#b18b5b" : "#9f7750"} roughness={0.86} />
+        </mesh>
+      ))}
+      {[0.4, 1.9, 3.3, 4.65, 5.7].map((angle, index) => (
+        <mesh key={`stylized-island-facet-${index}`} position={[Math.sin(angle) * 6.45, -0.12, Math.cos(angle) * 6.45]} rotation={[0.16, angle, 0.04]}>
+          <dodecahedronGeometry args={[0.32 + (index % 2) * 0.1, 0]} />
+          <meshStandardMaterial color={index % 2 === 0 ? rimColor : "#8c7c57"} roughness={0.96} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function StylizedTower({
+  position,
+  height,
+  radius = 0.34,
+  roofColor,
+  stoneColor,
+  bannerColor,
+  crown = false
+}: {
+  position: [number, number, number];
+  height: number;
+  radius?: number;
+  roofColor: string;
+  stoneColor: string;
+  bannerColor: string;
+  crown?: boolean;
+}) {
+  return (
+    <group position={position}>
+      <mesh position={[0, height / 2, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[radius * 0.92, radius, height, 14]} />
+        <meshStandardMaterial color={stoneColor} roughness={0.86} />
+      </mesh>
+      <mesh position={[0, height + 0.05, 0]} castShadow>
+        <cylinderGeometry args={[radius * 1.08, radius * 0.98, 0.16, 14]} />
+        <meshStandardMaterial color="#8a7357" roughness={0.86} />
+      </mesh>
+      <mesh position={[0, height + 0.48, 0]} castShadow>
+        <coneGeometry args={[radius * 1.18, crown ? 0.96 : 0.72, 14]} />
+        <meshStandardMaterial color={roofColor} roughness={0.78} />
+      </mesh>
+      {[0, Math.PI * 0.5, Math.PI, Math.PI * 1.5].map((rotation, index) => (
+        <GothicWindow
+          glow={index === 0}
+          key={`stylized-tower-window-${index}`}
+          position={[Math.sin(rotation) * radius * 0.94, height * 0.54, Math.cos(rotation) * radius * 0.94]}
+          rotation={rotation}
+          scale={0.58}
+        />
+      ))}
+      <Banner color={bannerColor} position={[radius * 0.42, height + (crown ? 1.0 : 0.78), 0]} />
+    </group>
+  );
+}
+
+function StylizedCastle({
+  keepScale,
+  bannerColor,
+  hasStoneWalls,
+  builderCount
+}: {
+  keepScale: number;
+  bannerColor: string;
+  hasStoneWalls: boolean;
+  builderCount: number;
+}) {
+  const scale = 0.9 + keepScale / 220;
+  const stoneColor = hasStoneWalls ? "#c7cbc7" : "#d2c09b";
+  const stoneShadow = hasStoneWalls ? "#a7afad" : "#b39d7b";
+  const roofColor = hasStoneWalls ? "#50706a" : "#9b754c";
+
+  return (
+    <group position={[0, 0.12, 0]} scale={scale}>
+      <mesh position={[0, 0.28, 0]} receiveShadow>
+        <cylinderGeometry args={[1.88, 2.05, 0.34, 16]} />
+        <meshStandardMaterial color="#bba886" roughness={0.9} />
+      </mesh>
+      <mesh position={[0, 0.76, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[1.1, 1.28, 1.2, 12]} />
+        <meshStandardMaterial color={stoneColor} roughness={0.84} />
+      </mesh>
+      <mesh position={[0, 1.62, 0]} castShadow>
+        <coneGeometry args={[1.34, 1.0, 12]} />
+        <meshStandardMaterial color={roofColor} roughness={0.76} />
+      </mesh>
+      <mesh position={[0, 0.54, 1.24]} castShadow>
+        <boxGeometry args={[0.42, 0.5, 0.05]} />
+        <meshStandardMaterial color="#4d3528" roughness={0.86} />
+      </mesh>
+      <RoseWindow glow={builderCount >= 2} position={[0, 1.06, 1.29]} scale={0.95} />
+      {[-1.22, 1.22].map((x, index) => (
+        <StylizedTower
+          bannerColor={bannerColor}
+          height={1.46 + index * 0.16}
+          key={`stylized-front-tower-${index}`}
+          position={[x, 0.22, 0.92]}
+          roofColor={roofColor}
+          stoneColor={stoneColor}
+        />
+      ))}
+      <StylizedTower
+        bannerColor={bannerColor}
+        crown
+        height={2.2}
+        position={[-0.62, 0.3, -0.72]}
+        radius={0.28}
+        roofColor={roofColor}
+        stoneColor={stoneColor}
+      />
+      <StylizedTower
+        bannerColor={bannerColor}
+        height={1.68}
+        position={[1.12, 0.26, -0.82]}
+        radius={0.3}
+        roofColor={roofColor}
+        stoneColor={stoneShadow}
+      />
+      {[0, Math.PI * 0.5, Math.PI, Math.PI * 1.5].map((rotation, index) => (
+        <mesh key={`stylized-castle-wall-${index}`} position={[Math.sin(rotation) * 1.58, 0.62, Math.cos(rotation) * 1.58]} rotation={[0, rotation, 0]} castShadow receiveShadow>
+          <boxGeometry args={[1.64, 0.58, 0.18]} />
+          <meshStandardMaterial color={stoneShadow} roughness={0.88} />
+        </mesh>
+      ))}
+      <Lantern color={bannerColor} position={[-0.44, 0.36, 1.38]} />
+      <Lantern color={bannerColor} position={[0.44, 0.36, 1.38]} />
+      {builderCount >= 3 ? <SmokePlume position={[0.42, 2.42, -0.24]} /> : null}
+    </group>
+  );
+}
+
+function StylizedVillage({
+  count,
+  bannerColor,
+  active = false
+}: {
+  count: number;
+  bannerColor: string;
+  active?: boolean;
+}) {
+  const positions = [
+    [3.75, 0.1, 1.12],
+    [4.52, 0.1, 0.2],
+    [3.95, 0.1, -1.02],
+    [-3.82, 0.1, 1.24],
+    [-4.42, 0.1, 0.1],
+    [4.84, 0.1, 1.34]
+  ] as const;
+
+  return (
+    <group>
+      {positions.slice(0, count).map((position, index) => (
+        <group key={`stylized-village-house-${index}`} position={position as [number, number, number]} rotation={[0, index * 0.4 - 0.2, 0]}>
+          <mesh position={[0, 0.24, 0]} castShadow receiveShadow>
+            <cylinderGeometry args={[0.26, 0.32, 0.48, 6]} />
+            <meshStandardMaterial color={index % 2 === 0 ? "#c3a174" : "#ba8f64"} roughness={0.86} />
+          </mesh>
+          <mesh position={[0, 0.65, 0]} castShadow>
+            <coneGeometry args={[0.38, 0.42, 6]} />
+            <meshStandardMaterial color={index % 2 === 0 ? "#b9864b" : "#916849"} roughness={0.78} />
+          </mesh>
+          <mesh position={[0, 0.26, 0.31]}>
+            <boxGeometry args={[0.11, 0.2, 0.035]} />
+            <meshStandardMaterial color="#46342b" emissive={active ? bannerColor : "#000000"} emissiveIntensity={active ? 0.2 : 0} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function StylizedForest({
+  count
+}: {
+  count: number;
+}) {
+  const positions = [
+    [-5.3, 0.04, -2.8],
+    [-4.4, 0.04, -4.1],
+    [-2.6, 0.04, -5.0],
+    [0.9, 0.04, -5.35],
+    [3.0, 0.04, -4.75],
+    [5.1, 0.04, -2.9],
+    [-5.35, 0.04, 2.6],
+    [-4.25, 0.04, 4.18],
+    [2.8, 0.04, 4.75],
+    [4.9, 0.04, 3.0],
+    [0.35, 0.04, 5.32],
+    [-2.0, 0.04, 5.0]
+  ] as const;
+
+  return (
+    <group>
+      {positions.slice(0, count).map((position, index) => (
+        <Tree key={`stylized-forest-tree-${index}`} position={position as [number, number, number]} scale={0.8 + (index % 3) * 0.12} />
+      ))}
+    </group>
+  );
+}
+
+function StylizedProgressMarker({
+  focus,
+  color,
+  tier
+}: {
+  focus: WorldFocus | null;
+  color: string;
+  tier: "settling" | "building" | "surging";
+}) {
+  if (!focus) {
+    return null;
+  }
+
+  return (
+    <group position={focus.worldPosition}>
+      <ProjectBeacon color={color} tier={tier} position={[0, 0, 0]} />
+      <mesh position={[0, 0.56, 0]} castShadow>
+        <coneGeometry args={[0.18, 0.42, 5]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.28} />
+      </mesh>
+    </group>
+  );
+}
+
+function StylizedWorldScene({
+  snapshot,
+  keepScale,
+  villageHouseCount,
+  wallTowerCount,
+  forestTreeCount,
+  viewMode
+}: WorldSceneProps) {
+  const citizens = snapshot?.citizens ?? [];
+  const mood = getSceneMood(snapshot?.currentCategory);
+  const bannerColor = getBannerColor(snapshot?.currentCategory);
+  const unlockedStructures = new Set(snapshot?.unlockedStructures ?? []);
+  const builderCount = citizens.filter((citizen) => citizen.type === "builder").length;
+  const hasStoneWalls = unlockedStructures.has("Stone walls") || unlockedStructures.has("Stone workshop");
+  const isWork = snapshot?.currentCategory === "work";
+  const focus = snapshot?.worldFocus ?? null;
+  const streakTier = snapshot?.currentStreakTier ?? "settling";
+
+  return (
+    <>
+      <color attach="background" args={[mood.background]} />
+      <fog attach="fog" args={[mood.fog, 12, viewMode === "plan" ? 28 : 22]} />
+      <ambientLight intensity={0.58} />
+      <hemisphereLight color={mood.cloudColor} groundColor="#2c432c" intensity={0.72} />
+      <directionalLight
+        castShadow
+        color={mood.sunlight}
+        intensity={2.25}
+        position={[7, 10, 6]}
+        shadow-bias={-0.0006}
+        shadow-mapSize-height={2048}
+        shadow-mapSize-width={2048}
+      />
+      <pointLight color={bannerColor} distance={8} intensity={0.72} position={[0, 3.4, 1.8]} />
+      {viewMode === "rampart" ? (
+        <>
+          <GoldenHourSky cloudColor={mood.cloudColor} sunColor={mood.sunColor} />
+          <Cloud color={mood.cloudColor} position={[-4.4, 6.6, -5.8]} scale={1.05} speed={0.14} />
+          <BirdFlock color={snapshot?.currentCategory === "play" ? "#5d3630" : "#4e5a62"} position={[-2.1, 5.9, -4.8]} scale={0.88} />
+        </>
+      ) : null}
+      <group position={[0, -0.2, 0]}>
+        <StylizedIslandBase active={isWork} mood={mood} />
+        <StylizedCastle
+          bannerColor={bannerColor}
+          builderCount={builderCount}
+          hasStoneWalls={hasStoneWalls}
+          keepScale={keepScale}
+        />
+        {wallTowerCount >= 2 ? (
+          <>
+            <StylizedTower bannerColor={bannerColor} height={1.08} position={[-2.64, 0.0, -2.18]} radius={0.22} roofColor={hasStoneWalls ? "#50706a" : "#9b754c"} stoneColor={hasStoneWalls ? "#c1c6c2" : "#c7b38e"} />
+            <StylizedTower bannerColor={bannerColor} height={1.08} position={[2.64, 0.0, -2.18]} radius={0.22} roofColor={hasStoneWalls ? "#50706a" : "#9b754c"} stoneColor={hasStoneWalls ? "#c1c6c2" : "#c7b38e"} />
+          </>
+        ) : null}
+        <StylizedVillage active={isWork} bannerColor={bannerColor} count={villageHouseCount} />
+        <StylizedForest count={forestTreeCount} />
+        <StylizedProgressMarker color={focus?.color ?? bannerColor} focus={focus} tier={streakTier} />
+        {citizens.slice(0, 5).map((citizen) => (
+          <CitizenMarker citizen={citizen} districtStatus="active" key={citizen.id} />
+        ))}
+      </group>
+      <ContactShadows
+        blur={2.8}
+        far={9}
+        opacity={0.34}
+        position={[0, -0.44, 0]}
+        resolution={512}
+        scale={15}
+      />
+    </>
+  );
+}
+
 function CastleFallback({
   stageLabel,
   keepScale,
@@ -4121,7 +4452,7 @@ function CastleScene(props: CastleSceneProps) {
             }}
             shadows
           >
-            <WorldScene {...props} viewMode={viewMode} />
+            <StylizedWorldScene {...props} viewMode={viewMode} />
           </Canvas>
         ) : (
           <Canvas
@@ -4135,7 +4466,7 @@ function CastleScene(props: CastleSceneProps) {
             orthographic
             shadows
           >
-            <WorldScene {...props} viewMode={viewMode} />
+            <StylizedWorldScene {...props} viewMode={viewMode} />
           </Canvas>
         )
       ) : (
