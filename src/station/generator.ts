@@ -1,6 +1,6 @@
-// Grows a castle one step at a time by snapping pieces onto open connectors (jigsaw style),
-// or raising an existing tower/keep by a storey. Fully deterministic for a given seed, so the
-// whole castle can be rebuilt from (seed, build points) and never reshuffles.
+﻿// Grows a space station one step at a time by snapping pieces onto open connectors (jigsaw style),
+// or adding a deck to an existing node or the core. Fully deterministic for a given seed, so the
+// whole station can be rebuilt from (seed, build points) and never reshuffles.
 
 import { PIECES, POOLS, POOL_PULL, RAISE_COST, costScale } from "./catalog.ts";
 import type { Dir, PieceKind, PoolName } from "./catalog.ts";
@@ -52,7 +52,7 @@ export function rotateCell(x: number, z: number, w: number, d: number, rot: numb
   }
 }
 
-export class CastlePlanner {
+export class StationPlanner {
   readonly seed: number;
   readonly steps: PlanStep[] = [];
   readonly pieces: PlacedPiece[] = [];
@@ -65,9 +65,9 @@ export class CastlePlanner {
   constructor(seed: number) {
     this.seed = seed;
     this.rng = createRng(seed);
-    const keep = this.makePiece("keep", -1, -1, 0);
-    this.commit(keep);
-    this.steps.push({ type: "place", index: 0, piece: keep, cost: 0, total: 0 });
+    const core = this.makePiece("core", -1, -1, 0);
+    this.commit(core);
+    this.steps.push({ type: "place", index: 0, piece: core, cost: 0, total: 0 });
   }
 
   /** Plans steps until their combined cost passes `points` (plus one step beyond). */
@@ -127,7 +127,7 @@ export class CastlePlanner {
     const target =
       pickWeighted(this.rng, targets, (id) => {
         const piece = this.pieces[id];
-        const preference = piece.kind === "keep" ? 3 : piece.kind === "greatTower" ? 2 : piece.kind === "hall" ? 0.4 : 1;
+        const preference = piece.kind === "core" ? 3 : piece.kind === "ring" ? 1.5 : piece.kind === "lab" ? 0.4 : 1;
         return preference / (1 + this.plannedLevels[id] - piece.baseLevels);
       }) ?? targets[0];
     this.plannedLevels[target] += 1;
@@ -144,7 +144,7 @@ export class CastlePlanner {
     return step;
   }
 
-  /** Towers and the keep get taller as the castle matures. */
+  /** Nodes and the core gain decks as the station matures. */
   private raiseTargets(index: number): number[] {
     const targets: number[] = [];
     for (const piece of this.pieces) {
@@ -271,28 +271,28 @@ export class CastlePlanner {
 
 // ---- turning a plan + build points into what's on screen ------------------------------
 
-export interface CastleState {
+export interface StationState {
   /** finished pieces, with their current storey count */
   pieces: Array<PlacedPiece & { levels: number }>;
   /** the step being worked on right now */
   current: PlanStep | null;
   progress: number;
   builtSteps: number;
-  planner: CastlePlanner;
+  planner: StationPlanner;
 }
 
-const planners = new Map<number, CastlePlanner>();
+const planners = new Map<number, StationPlanner>();
 
-export function plannerFor(seed: number): CastlePlanner {
+export function plannerFor(seed: number): StationPlanner {
   let planner = planners.get(seed);
   if (!planner) {
-    planner = new CastlePlanner(seed);
+    planner = new StationPlanner(seed);
     planners.set(seed, planner);
   }
   return planner;
 }
 
-export function resolveCastle(seed: number, points: number): CastleState {
+export function resolveStation(seed: number, points: number): StationState {
   const planner = plannerFor(seed);
   planner.ensurePoints(points);
 
@@ -323,7 +323,7 @@ export function resolveCastle(seed: number, points: number): CastleState {
   return { pieces, current, progress, builtSteps, planner };
 }
 
-export function stepLabel(step: PlanStep | null, planner: CastlePlanner): string {
+export function stepLabel(step: PlanStep | null, planner: StationPlanner): string {
   if (!step) {
     return "Planning";
   }
@@ -331,5 +331,5 @@ export function stepLabel(step: PlanStep | null, planner: CastlePlanner): string
     return PIECES[step.piece.kind].name;
   }
   const name = PIECES[planner.pieces[step.target].kind].name;
-  return `${name}, storey ${step.level}`;
+  return `${name}, deck ${step.level}`;
 }

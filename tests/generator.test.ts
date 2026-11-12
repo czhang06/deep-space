@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CastlePlanner, DX, DZ, resolveCastle, rotateCell } from "../src/castle/generator.ts";
-import { PIECES } from "../src/castle/catalog.ts";
+import { StationPlanner, DX, DZ, resolveStation, rotateCell } from "../src/station/generator.ts";
+import { PIECES } from "../src/station/catalog.ts";
 
 test("rotating a cell four times returns it home", () => {
   const w = 2;
@@ -15,20 +15,20 @@ test("rotating a cell four times returns it home", () => {
   assert.deepEqual([x, z], [1, 0]);
 });
 
-test("the same seed always grows the same castle", () => {
-  const a = new CastlePlanner(1234);
-  const b = new CastlePlanner(1234);
+test("the same seed always grows the same station", () => {
+  const a = new StationPlanner(1234);
+  const b = new StationPlanner(1234);
   a.ensureSteps(150);
   b.ensureSteps(150);
   assert.deepEqual(a.steps, b.steps);
-  const c = new CastlePlanner(99);
+  const c = new StationPlanner(99);
   c.ensureSteps(150);
   assert.notDeepEqual(a.steps, c.steps);
 });
 
 test("pieces never overlap", () => {
   for (const seed of [1, 2, 3, 42, 777]) {
-    const planner = new CastlePlanner(seed);
+    const planner = new StationPlanner(seed);
     planner.ensureSteps(300);
     const seen = new Set<string>();
     for (const piece of planner.pieces) {
@@ -41,8 +41,8 @@ test("pieces never overlap", () => {
   }
 });
 
-test("every piece after the keep touches an earlier piece", () => {
-  const planner = new CastlePlanner(5);
+test("every module after the core touches an earlier piece", () => {
+  const planner = new StationPlanner(5);
   planner.ensureSteps(200);
   const owner = new Map<string, number>();
   for (const piece of planner.pieces) {
@@ -61,28 +61,28 @@ test("every piece after the keep touches an earlier piece", () => {
   }
 });
 
-test("the castle keeps growing for a long time", () => {
-  const planner = new CastlePlanner(8);
+test("the station keeps growing for a long time", () => {
+  const planner = new StationPlanner(8);
   planner.ensureSteps(600);
   assert.equal(planner.steps.length, 600);
 });
 
 test("raised pieces stay within their height limit", () => {
-  const planner = new CastlePlanner(21);
+  const planner = new StationPlanner(21);
   planner.ensureSteps(400);
-  const state = resolveCastle(21, planner.lastTotal());
+  const state = resolveStation(21, planner.lastTotal());
   for (const piece of state.pieces) {
     assert.ok(piece.levels <= PIECES[piece.kind].maxLevels, `${piece.kind} too tall`);
   }
 });
 
 test("build points map onto finished pieces plus one in progress", () => {
-  const empty = resolveCastle(3, 0);
-  assert.equal(empty.pieces.length, 1); // just the keep
+  const empty = resolveStation(3, 0);
+  assert.equal(empty.pieces.length, 1); // just the core
   assert.ok(empty.current);
   assert.equal(empty.progress, 0);
 
-  const later = resolveCastle(3, 500);
+  const later = resolveStation(3, 500);
   assert.ok(later.pieces.length > 10);
   assert.ok(later.progress >= 0 && later.progress < 1);
   assert.ok(later.current && later.current.total > 500);

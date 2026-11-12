@@ -1,4 +1,4 @@
-// Draws the Tiny Kingdom castle mark and writes the app and tray icons as PNGs.
+// Draws the Tiny Kingdom station mark and writes the app and tray icons as PNGs.
 // Run with: node scripts/make-icons.mjs   (no dependencies; uses zlib for PNG encoding)
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -10,39 +10,38 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const hex = (value) => [parseInt(value.slice(1, 3), 16), parseInt(value.slice(3, 5), 16), parseInt(value.slice(5, 7), 16)];
 
 // Shapes in a 0..1 square, painted in order. Later shapes cover earlier ones.
+// A space station: solar wings either side of a central hab with a docking ring.
 function shapes(theme) {
-  const stone = hex("#f4ecd9");
-  const flag = hex(theme.flag);
-  const hole = theme.bottom;
+  const hull = hex("#eef1f5");
+  const cell = hex(theme.cell);
+  const frame = hex(theme.frame);
+  const accent = hex(theme.accent);
+  const dark = theme.bottom;
   const rect = (x0, y0, x1, y1, color) => ({ test: (x, y) => x >= x0 && x <= x1 && y >= y0 && y <= y1, color });
-  const merlons = (x0, x1, y, count, color) => {
-    const list = [];
-    const width = (x1 - x0) / (count * 2 - 1);
-    for (let index = 0; index < count; index += 1) {
-      const left = x0 + index * width * 2;
-      list.push(rect(left, y - width * 0.9, left + width, y + 0.001, color));
-    }
-    return list;
-  };
+  const circle = (cx, cy, r, color) => ({ test: (x, y) => (x - cx) ** 2 + (y - cy) ** 2 <= r * r, color });
+  const ring = (cx, cy, r0, r1, color) => ({ test: (x, y) => { const d = (x - cx) ** 2 + (y - cy) ** 2; return d <= r1 * r1 && d >= r0 * r0; }, color });
+  const wing = (x0, x1) => [
+    rect(x0, 0.33, x1, 0.67, cell),
+    rect(x0, 0.49, x1, 0.51, frame),
+    rect((x0 + x1) / 2 - 0.008, 0.33, (x0 + x1) / 2 + 0.008, 0.67, frame)
+  ];
   return [
-    // towers and keep
-    rect(0.17, 0.45, 0.34, 0.82, stone),
-    ...merlons(0.17, 0.34, 0.45, 3, stone),
-    rect(0.66, 0.45, 0.83, 0.82, stone),
-    ...merlons(0.66, 0.83, 0.45, 3, stone),
-    rect(0.36, 0.31, 0.64, 0.82, stone),
-    ...merlons(0.36, 0.64, 0.31, 4, stone),
-    // door with a round top
-    { test: (x, y) => (x >= 0.445 && x <= 0.555 && y >= 0.66 && y <= 0.82) || (x - 0.5) ** 2 + (y - 0.66) ** 2 <= 0.055 ** 2, color: hole },
-    // windows
-    rect(0.235, 0.56, 0.275, 0.64, hole),
-    rect(0.725, 0.56, 0.765, 0.64, hole),
-    rect(0.475, 0.42, 0.525, 0.52, hole),
-    // flag
-    rect(0.495, 0.13, 0.515, 0.27, stone),
-    { test: (x, y) => x >= 0.515 && x <= 0.66 && y >= 0.13 && y <= 0.22 && x - 0.515 <= (0.66 - 0.515) * (1 - Math.abs(y - 0.175) / 0.09 * 0.35), color: flag },
-    // ground
-    rect(0.12, 0.81, 0.88, 0.86, stone)
+    // stars
+    circle(0.2, 0.18, 0.012, hull),
+    circle(0.82, 0.8, 0.012, hull),
+    circle(0.75, 0.16, 0.009, hull),
+    // truss
+    rect(0.27, 0.475, 0.73, 0.525, frame),
+    ...wing(0.08, 0.27),
+    ...wing(0.73, 0.92),
+    // central hab with a ring around it
+    ring(0.5, 0.5, 0.2, 0.245, hull),
+    circle(0.5, 0.5, 0.15, hull),
+    rect(0.35, 0.49, 0.65, 0.51, hull),
+    circle(0.5, 0.5, 0.06, dark),
+    // antenna and beacon
+    rect(0.495, 0.14, 0.505, 0.35, hull),
+    circle(0.5, 0.14, 0.035, accent)
   ];
 }
 
@@ -143,8 +142,8 @@ function encodePng(size, rgba) {
   ]);
 }
 
-const live = { top: hex("#5a7bb0"), bottom: hex("#34497a"), flag: "#d9483f" };
-const paused = { top: hex("#8d8a84"), bottom: hex("#5f5c57"), flag: "#b9b4aa" };
+const live = { top: hex("#26365f"), bottom: hex("#0b1124"), cell: "#3f7fd6", frame: "#9aa6b8", accent: "#f08a3c" };
+const paused = { top: hex("#6b6f78"), bottom: hex("#3c3f46"), cell: "#8a8f99", frame: "#b4b8c0", accent: "#c9ccd2" };
 
 const outputs = [
   ["build/icon.png", 512, live],

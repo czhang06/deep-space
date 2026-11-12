@@ -1,4 +1,4 @@
-export type Category = "work" | "play" | "idle" | "neutral";
+﻿export type Category = "work" | "play" | "idle" | "neutral";
 
 export interface Rule {
   id: string;
@@ -11,8 +11,7 @@ export interface Snapshot {
   seed: number;
   buildPoints: number;
   damage: number;
-  rogues: Array<{ id: string; name: string }>;
-  builders: number;
+  aliens: Array<{ id: string; name: string }>;
   streakMinutes: number;
   today: {
     work: number;

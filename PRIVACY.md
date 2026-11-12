@@ -2,7 +2,7 @@
 
 _Last updated: 12 November 2026_
 
-Tiny Kingdom is a desktop app that turns your focused computer time into a growing castle. This policy explains what it looks at, what it keeps, and what it never does. The short version: **everything stays on your computer, and nothing is ever sent anywhere.**
+Tiny Kingdom is a desktop app that turns your focused computer time into a growing space station. This policy explains what it looks at, what it keeps, and what it never does. The short version: **everything stays on your computer, and nothing is ever sent anywhere.**
 
 ## Who is responsible
 
@@ -28,7 +28,7 @@ That file holds:
 - **Per-app and per-site minutes**: for each day, minutes spent per app (for example "Visual Studio Code") or recognised site (for example "YouTube"). Sites the app doesn't recognise are grouped as "Other sites in Chrome", so page titles are never written down.
 - **Your rules**: the apps and sites you have told it to count as work, play or neutral.
 - **Your settings**: whether it starts with Windows, your daily free play time, and pause state.
-- **The castle**: a random seed, the castle's build progress, any rogues currently causing trouble, and the last few castle events (for example "The builders chased Wick out of the castle.").
+- **The station**: a random seed, the station's build progress, any aliens currently latched on, and the last few station events (for example "The crew pried Gloop off the hull and sent it drifting.").
 
 ## What the app never collects
 
@@ -47,7 +47,7 @@ Tiny Kingdom makes **no network connections**. It has no analytics, crash report
 
 - **Pause**: pause tracking for 30 minutes, an hour, or until you resume, from the tray menu or Settings.
 - **Correct**: tell it an app or site is work, play or neutral, and remove those rules at any time.
-- **Clear history**: Settings → Privacy → Clear history deletes all daily records and events, keeping your castle and rules.
+- **Clear history**: Settings → Privacy → Clear history deletes all daily records and events, keeping your station and rules.
 - **Delete everything**: quit the app, uninstall it from Windows Settings → Apps, and delete the `%APPDATA%\Tiny Kingdom` folder.
 - **Start with Windows**: turn it on or off in Settings or the tray menu.
 

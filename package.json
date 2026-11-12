@@ -3,7 +3,7 @@
   "productName": "Tiny Kingdom",
   "version": "0.2.0",
   "private": true,
-  "description": "A little castle in your system tray that grows while you focus.",
+  "description": "A little space station in your system tray that grows while you focus.",
   "author": "czhang06",
   "type": "module",
   "main": "electron/main.cjs",

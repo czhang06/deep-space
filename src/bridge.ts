@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import type { KingdomApi, Rule, Snapshot } from "./types.ts";
 
 // In the desktop app the preload script provides `window.kingdom`. In a plain browser
 // (npm run dev:renderer) a local stand-in is used so the UI can be built and previewed.
-// Preview knobs: ?points=600&damage=1&rogues=2&grow=1&hour=20
+// Preview knobs: ?points=600&damage=1&aliens=2&grow=1
 
 function previewApi(): KingdomApi {
   const params = new URLSearchParams(window.location.search);
@@ -16,8 +16,7 @@ function previewApi(): KingdomApi {
     seed: number("seed", 20261111),
     buildPoints: number("points", 420),
     damage: number("damage", 0),
-    rogues: Array.from({ length: number("rogues", 0) }, (_, index) => ({ id: `r${index}`, name: ["Wick", "Nettle", "Crow"][index % 3] })),
-    builders: number("builders", 3),
+    aliens: Array.from({ length: number("aliens", 0) }, (_, index) => ({ id: `a${index}`, name: ["Gloop", "Zib", "Xorvak"][index % 3] })),
     streakMinutes: 32,
     today: {
       work: 154,
@@ -45,8 +44,8 @@ function previewApi(): KingdomApi {
     rules: [{ id: "rule-1", targetType: "app", pattern: "discord", category: "neutral" }],
     settings: { openAtLogin: true, playAllowanceMinutes: 90 },
     events: [
-      { text: "The builders finished a round tower.", at: Date.now() - 600000 },
-      { text: "A new keep was founded. Focused work will grow it.", at: Date.now() - 86400000 }
+      { text: "Finished a hab node.", at: Date.now() - 600000 },
+      { text: "A new station came online. Focused work will grow it.", at: Date.now() - 86400000 }
     ]
   };
 

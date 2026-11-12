@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../bridge.ts";
-import { resolveCastle, stepLabel } from "../castle/generator.ts";
+import { resolveStation, stepLabel } from "../station/generator.ts";
+import { journeyAt } from "../station/journey.ts";
 import type { Category, Snapshot } from "../types.ts";
 
 export const CATEGORY_LABEL: Record<Category | "paused", string> = {
@@ -22,25 +23,25 @@ export function formatMinutes(minutes: number): string {
 }
 
 export function useBuildStatus(snapshot: Snapshot) {
-  const castle = resolveCastle(snapshot.seed, snapshot.buildPoints);
+  const station = resolveStation(snapshot.seed, snapshot.buildPoints);
   return {
-    label: stepLabel(castle.current, castle.planner),
-    progress: castle.progress,
-    built: castle.pieces.length,
-    remaining: castle.current ? Math.max(0, castle.current.total - snapshot.buildPoints) : 0
+    label: stepLabel(station.current, station.planner),
+    progress: station.progress,
+    built: station.pieces.length,
+    remaining: station.current ? Math.max(0, station.current.total - snapshot.buildPoints) : 0
   };
 }
 
 export function BuildStatus({ snapshot }: { snapshot: Snapshot }) {
   const status = useBuildStatus(snapshot);
   const percent = Math.floor(status.progress * 100);
-  const slowed = snapshot.rogues.length > 0 || snapshot.damage > 0;
+  const slowed = snapshot.aliens.length > 0 || snapshot.damage > 0;
   return (
     <section className="build" aria-label="Construction">
       <div className="build__row">
         <span className="eyebrow">{snapshot.damage > 0 ? "Repairing, then building" : "Now building"}</span>
         <span className="build__count">
-          {status.built} piece{status.built === 1 ? "" : "s"}
+          {status.built} module{status.built === 1 ? "" : "s"}
         </span>
       </div>
       <div className="build__row">
@@ -52,9 +53,9 @@ export function BuildStatus({ snapshot }: { snapshot: Snapshot }) {
       </div>
       <p className="build__hint">
         {snapshot.paused
-          ? "Paused. The builders are resting."
+          ? "Paused. The station is drifting quietly."
           : `About ${formatMinutes(status.remaining)} of focused work to finish`}
-        {slowed && !snapshot.paused ? ", slowed by rogues" : ""}.
+        {slowed && !snapshot.paused ? ", slowed by aliens" : ""}.
       </p>
     </section>
   );
@@ -161,15 +162,17 @@ export function NowCard({ snapshot }: { snapshot: Snapshot }) {
   );
 }
 
-export function Kingdomfolk({ snapshot }: { snapshot: Snapshot }) {
+export function StationChips({ snapshot }: { snapshot: Snapshot }) {
+  const station = resolveStation(snapshot.seed, snapshot.buildPoints);
+  const journey = journeyAt(station.builtSteps, station.progress);
   return (
-    <ul className="folk" aria-label="Who's in the castle">
-      <li>
-        <i className="dot tone-work" /> {snapshot.builders} builder{snapshot.builders === 1 ? "" : "s"}
+    <ul className="folk" aria-label="Station status">
+      <li title={journey.lap > 1 ? `Lap ${journey.lap} of the solar system` : undefined}>
+        <i className="dot tone-work" /> {journey.label}
       </li>
-      {snapshot.rogues.length > 0 ? (
-        <li className="folk__rogues">
-          <i className="dot tone-play" /> {snapshot.rogues.length} rogue{snapshot.rogues.length === 1 ? "" : "s"}
+      {snapshot.aliens.length > 0 ? (
+        <li className="folk__aliens">
+          <i className="dot tone-alien" /> {snapshot.aliens.length} alien{snapshot.aliens.length === 1 ? "" : "s"} on the hull
         </li>
       ) : null}
       {snapshot.streakMinutes >= 25 ? <li className="folk__streak">Focus streak {formatMinutes(snapshot.streakMinutes)} · 1.5×</li> : null}

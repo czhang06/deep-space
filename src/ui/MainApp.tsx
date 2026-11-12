@@ -1,11 +1,11 @@
 import { Suspense, lazy, useState } from "react";
 import { isPreview, useSnapshot } from "../bridge.ts";
-import { BuildStatus, Kingdomfolk, LatestEvent, NowCard, TodayBar } from "./parts.tsx";
+import { BuildStatus, LatestEvent, NowCard, StationChips, TodayBar } from "./parts.tsx";
 import { Settings } from "./Settings.tsx";
 
-const CastleView = lazy(() => import("../castle/CastleView.tsx"));
+const StationView = lazy(() => import("../station/StationView.tsx"));
 
-/** The full window: the castle fills it, with a few quiet cards on top. */
+/** The full window: the station fills it, with a few quiet cards on top. */
 export default function MainApp() {
   const snapshot = useSnapshot();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -16,12 +16,11 @@ export default function MainApp() {
     <main className="main">
       <div className="main__scene">
         <Suspense fallback={<div className="scene-fallback" />}>
-          <CastleView
+          <StationView
             seed={snapshot.seed}
             buildPoints={snapshot.buildPoints}
             damage={snapshot.damage}
-            rogues={snapshot.rogues.length}
-            builders={snapshot.builders}
+            aliens={snapshot.aliens.length}
           />
         </Suspense>
       </div>
@@ -29,7 +28,7 @@ export default function MainApp() {
       <header className="main__top">
         <div className="card card--title">
           <span className="wordmark wordmark--large">Tiny Kingdom</span>
-          <Kingdomfolk snapshot={snapshot} />
+          <StationChips snapshot={snapshot} />
         </div>
         <button type="button" className="icon-button icon-button--glass icon-button--large" onClick={() => setSettingsOpen(true)} aria-label="Settings" title="Settings">
           ⚙

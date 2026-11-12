@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { api, isPreview } from "../bridge.ts";
 import type { Snapshot } from "../types.ts";
 import { CATEGORY_LABEL, formatMinutes } from "./parts.tsx";
@@ -30,7 +30,7 @@ export function PrivacyNotice() {
       <ul>
         <li>Minutes per day of work, play, break and neutral time, for the last 60 days.</li>
         <li>Minutes per app or recognised site per day. Unrecognised sites are grouped as "Other sites".</li>
-        <li>Your rules, your settings, and the castle's progress.</li>
+        <li>Your rules, your settings, and the station's progress.</li>
       </ul>
       <h4>What it never keeps</h4>
       <ul>
@@ -107,7 +107,7 @@ export function Settings({ snapshot, onClose }: { snapshot: Snapshot; onClose: (
         <section className="sheet__section">
           <h3>Free play time</h3>
           <p className="muted">
-            Play up to <b>{formatMinutes(allowance)}</b> a day before rogues start sneaking in.
+            Play up to <b>{formatMinutes(allowance)}</b> a day before aliens start latching on.
           </p>
           <input
             className="slider"
@@ -176,7 +176,7 @@ export function Settings({ snapshot, onClose }: { snapshot: Snapshot; onClose: (
               </button>
             ) : null}
           </div>
-          <p className="muted">Clearing history keeps your castle and rules.</p>
+          <p className="muted">Clearing history keeps your station and rules.</p>
         </section>
       </aside>
     </>

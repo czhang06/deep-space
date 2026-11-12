@@ -1,4 +1,4 @@
-const test = require("node:test");
+﻿const test = require("node:test");
 const assert = require("node:assert/strict");
 const sim = require("../electron/services/sim.cjs");
 
@@ -28,29 +28,29 @@ test("breaks and neutral time cost nothing", () => {
   assert.equal(sim.today(state, NOON).idle, 60);
 });
 
-test("play inside the daily allowance brings no rogues", () => {
+test("play inside the daily allowance brings no aliens", () => {
   const state = sim.createState({ seed: 1 });
   run(state, "play", 89);
-  assert.equal(state.rogues.length, 0);
+  assert.equal(state.aliens.length, 0);
 });
 
-test("play past the allowance brings rogues, capped at three", () => {
+test("play past the allowance brings aliens, capped at three", () => {
   const state = sim.createState({ seed: 1 });
   run(state, "play", 91);
-  assert.equal(state.rogues.length, 1);
+  assert.equal(state.aliens.length, 1);
   assert.equal(sim.damageCount(state), 1);
   run(state, "play", 600);
-  assert.equal(state.rogues.length, sim.MAX_ROGUES);
+  assert.equal(state.aliens.length, sim.MAX_ALIENS);
 });
 
-test("work repairs damage first, then chases rogues out", () => {
+test("work repairs damage first, then pries aliens off", () => {
   const state = sim.createState({ seed: 1 });
   run(state, "play", 91);
   run(state, "work", 10);
-  assert.equal(state.buildPoints, 0); // still repairing (rogue slows work by 20%)
-  run(state, "work", sim.ROGUE_WORK_TO_EVICT);
+  assert.equal(state.buildPoints, 0); // still repairing (an alien slows work by 20%)
+  run(state, "work", sim.ALIEN_WORK_TO_EVICT);
   assert.equal(sim.damageCount(state), 0);
-  assert.equal(state.rogues.length, 0);
+  assert.equal(state.aliens.length, 0);
   assert.ok(state.buildPoints > 0);
 });
 
@@ -58,7 +58,7 @@ test("the allowance resets each day", () => {
   const state = sim.createState({ seed: 1 });
   run(state, "play", 80, NOON);
   run(state, "play", 80, NOON + 24 * 3600 * 1000);
-  assert.equal(state.rogues.length, 0);
+  assert.equal(state.aliens.length, 0);
 });
 
 test("pauses expire", () => {

@@ -1,17 +1,19 @@
 # Tiny Kingdom
 
-A little castle that lives in your Windows system tray and grows while you focus.
+A little space station that lives in your Windows system tray and grows while you focus.
 
-Focused work hires builders, who snap new pieces onto the castle: walls, round towers, gatehouses, great halls, chapels, cottages and gardens, and they raise towers storey by storey over time. Breaks cost nothing. Play is free up to a daily allowance; past that, rogues sneak in, slow the builders and knock things over until more work chases them out.
+Focused work snaps new modules onto the station: corridors, hab nodes that stack into towers, lab modules, docking ports with shuttles, observatories, solar arrays, greenhouse domes, comms dishes and, later on, spinning ring habitats. As it grows, the station drifts outward through the solar system, past Mercury, Venus, Earth and Mars out to Jupiter, Saturn, Uranus, Neptune and Pluto, then starts another lap.
+
+Breaks cost nothing. Play is free up to a daily allowance; past that, aliens latch onto the hull, scorch it and slow construction until more work repairs the damage and pries them off.
 
 Everything runs locally. See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md).
 
 ## Using it
 
 - **Install**: run `release/Tiny Kingdom Setup <version>.exe`. It installs for your user only and adds a desktop shortcut and a Start-menu entry.
-- **Tray**: click the castle icon by the clock for a quick look. Right-click it to pause, toggle "Start with Windows", or quit.
+- **Tray**: click the station icon by the clock for a quick look. Right-click it to pause, toggle "Start with Windows", or quit.
 - **Main window**: the desktop shortcut, or the expand button in the popup, opens the full view. Closing it keeps the app running in the tray.
-- **Wrong category?** In the popup or main window, "Right now" shows what's in front. Click Work, Play or Neutral to always count that app or site that way.
+- **Wrong category?** "Right now" shows what's in front. Click Work, Play or Neutral to always count that app or site that way.
 
 ## How it decides
 
@@ -23,9 +25,9 @@ Everything runs locally. See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY
 
 A new category has to hold for a minute before it counts, so a quick alt-tab doesn't flip anything. Five minutes without input, or a locked screen, counts as a break.
 
-## How the castle grows
+## How the station grows
 
-The castle is generated jigsaw-style from a fixed seed: every piece has connectors (wall ends, tower sides, yard edges), and each new piece snaps onto an open connector whose pool allows it. Some steps raise an existing tower or the keep by a storey instead. The plan is deterministic, so the castle is rebuilt exactly from `(seed, build points)` and never reshuffles. One build point is one focused minute (1.5× once a streak passes 25 minutes), and later pieces cost more.
+The station is generated jigsaw-style from a fixed seed. Every module has docking ports (corridor ends, node sides, side mounts), and each new module snaps onto an open port whose pool allows it. Some steps add a deck to a hab node or the command core instead. The plan is deterministic, so the station is rebuilt exactly from `(seed, build points)` and never reshuffles. One build point is one focused minute (1.5× once a streak passes 25 minutes), and later modules cost more. Every 10 finished steps moves the station on to the next planet.
 
 ## Development
 
@@ -38,12 +40,12 @@ npm run check          # TypeScript
 npm run dist           # tests + build + Windows installer in release/
 ```
 
-Browser-preview knobs: `?points=900&damage=1&rogues=2&hour=20&grow=5` (`grow` adds points every second).
+Browser-preview knobs: `?points=900&damage=1&aliens=2&grow=5` (`grow` adds points every second).
 
 | Path | What |
 | --- | --- |
 | `electron/main.cjs` | Tray, popup and main windows, `app://` protocol, security hardening, IPC |
 | `electron/services/` | Foreground watcher, classifier, simulation, storage |
-| `src/castle/` | Piece catalog, jigsaw generator, 3D models, citizens, scene |
+| `src/station/` | Module catalog, jigsaw generator, 3D modules, solar-system journey, scene |
 | `src/ui/` | Popup, main window, settings |
 | `scripts/make-icons.mjs` | Draws the app and tray icons |

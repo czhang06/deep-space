@@ -25,7 +25,7 @@ test("a stray word in a title doesn't decide the category", () => {
 test("browser tabs are classified by the site name in the title", () => {
   assert.equal(classify(chrome("lofi hip hop radio - YouTube")).category, "play");
   assert.equal(classify(chrome("(3) YouTube")).category, "play");
-  assert.equal(classify(chrome("GitHub - czhang06/tiny-kingdom: a castle")).category, "work");
+  assert.equal(classify(chrome("GitHub - czhang06/tiny-kingdom: a space station")).category, "work");
   assert.equal(classify(chrome("Quarterly plan - Google Docs")).category, "work");
   assert.equal(classify(chrome("(12) Home / X")).category, "play");
   assert.equal(classify(chrome("r/programming - Reddit")).category, "play");

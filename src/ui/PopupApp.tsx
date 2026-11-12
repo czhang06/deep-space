@@ -1,8 +1,8 @@
 import { Suspense, lazy } from "react";
 import { api, useSnapshot } from "../bridge.ts";
-import { BuildStatus, Kingdomfolk, NowCard, TodayBar } from "./parts.tsx";
+import { BuildStatus, NowCard, StationChips, TodayBar } from "./parts.tsx";
 
-const CastleView = lazy(() => import("../castle/CastleView.tsx"));
+const StationView = lazy(() => import("../station/StationView.tsx"));
 
 /** The small window that pops up from the tray icon. */
 export default function PopupApp() {
@@ -14,13 +14,12 @@ export default function PopupApp() {
     <div className="popup">
       <div className="popup__scene">
         <Suspense fallback={<div className="scene-fallback" />}>
-          <CastleView
+          <StationView
             compact
             seed={snapshot.seed}
             buildPoints={snapshot.buildPoints}
             damage={snapshot.damage}
-            rogues={snapshot.rogues.length}
-            builders={snapshot.builders}
+            aliens={snapshot.aliens.length}
           />
         </Suspense>
         <header className="popup__bar">
@@ -39,14 +38,14 @@ export default function PopupApp() {
               type="button"
               className="icon-button icon-button--glass"
               onClick={() => void api.openMain()}
-              aria-label="Open the full kingdom"
-              title="Open the full kingdom"
+              aria-label="Open the full view"
+              title="Open the full view"
             >
               ⤢
             </button>
           </div>
         </header>
-        <Kingdomfolk snapshot={snapshot} />
+        <StationChips snapshot={snapshot} />
       </div>
       <div className="popup__body">
         <BuildStatus snapshot={snapshot} />

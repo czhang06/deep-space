@@ -1,4 +1,4 @@
-const { EventEmitter } = require("node:events");
+﻿const { EventEmitter } = require("node:events");
 const { classify, statLabel } = require("./classifier.cjs");
 const { ForegroundWatcher } = require("./foreground-watcher.cjs");
 const sim = require("./sim.cjs");
@@ -26,7 +26,7 @@ class KingdomService extends EventEmitter {
     const saved = sim.reviveState(this.store.load());
     this.state = saved ?? sim.createState();
     if (!saved) {
-      sim.pushEvent(this.state, "A new keep was founded. Focused work will grow it.", Date.now());
+      sim.pushEvent(this.state, "A new station came online. Focused work will grow it.", Date.now());
     }
     this.getIdleSeconds = getIdleSeconds;
     this.watcher = new ForegroundWatcher();
@@ -221,8 +221,7 @@ class KingdomService extends EventEmitter {
       seed: this.state.seed,
       buildPoints: this.state.buildPoints,
       damage: sim.damageCount(this.state),
-      rogues: this.state.rogues.map((rogue) => ({ id: rogue.id, name: rogue.name })),
-      builders: sim.builderCount(this.state, now),
+      aliens: this.state.aliens.map((alien) => ({ id: alien.id, name: alien.name })),
       streakMinutes: this.state.streak.category === "work" ? Math.round(this.state.streak.minutes) : 0,
       today: {
         work: Math.round(day.work),

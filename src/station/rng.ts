@@ -1,4 +1,4 @@
-/** Small seeded PRNG (mulberry32) so the same seed always grows the same castle. */
+/** Small seeded PRNG (mulberry32) so the same seed always grows the same station. */
 export function createRng(seed: number): () => number {
   let state = seed >>> 0;
   return () => {

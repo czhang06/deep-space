@@ -1,4 +1,4 @@
-const fs = require("node:fs");
+﻿const fs = require("node:fs");
 const path = require("node:path");
 const {
   BrowserWindow,
@@ -256,7 +256,7 @@ function main() {
       show: false,
       title: APP_NAME,
       icon: path.join(ASSETS, "icon.png"),
-      backgroundColor: "#a8d3ee",
+      backgroundColor: "#05070f",
       autoHideMenuBar: true,
       webPreferences: webPreferences()
     });

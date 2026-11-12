@@ -24,7 +24,7 @@ class Store {
     }
   }
 
-  // Write to a temp file and rename, so a crash mid-write can't corrupt the castle.
+  // Write to a temp file and rename, so a crash mid-write can't corrupt the station.
   save(state) {
     const tempPath = `${this.filePath}.tmp`;
     fs.writeFileSync(tempPath, JSON.stringify(state));
