@@ -4,8 +4,14 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   base: "./",
   plugins: [react()],
+  build: {
+    // A local desktop app: one big 3D chunk loaded from disk is fine.
+    chunkSizeWarningLimit: 1500,
+    sourcemap: false
+  },
   server: {
     host: "127.0.0.1",
-    port: 5173
+    port: 5173,
+    strictPort: true
   }
 });

@@ -1,38 +1,79 @@
 {
   "name": "tiny-kingdom",
   "productName": "Tiny Kingdom",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Windows-first productivity castle prototype built with Electron, React, and Three.js.",
+  "description": "A little castle in your system tray that grows while you focus.",
+  "author": "czhang06",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
     "dev:renderer": "vite",
-    "dev:electron": "wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
-    "start": "electron .",
-    "build": "vite build --base ./",
-    "preview": "vite preview",
-    "check": "tsc"
+    "dev:electron": "wait-on tcp:127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
+    "build": "vite build",
+    "start": "npm run build && electron .",
+    "check": "tsc",
+    "test": "node --test tests/classifier.test.cjs tests/sim.test.cjs tests/generator.test.ts",
+    "icons": "node scripts/make-icons.mjs",
+    "dist": "npm run check && npm test && npm run build && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.czhang.tinykingdom",
+    "productName": "Tiny Kingdom",
+    "copyright": "Copyright (c) 2026 czhang06",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "electron/scripts/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Tiny Kingdom",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
+    }
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "three": "^0.184.0",
-    "zustand": "^5.0.12"
+    "three": "^0.184.0"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.184.0",
     "@vitejs/plugin-react": "^6.0.1",
-    "concurrently": "^9.2.1",
+    "concurrently": "^10.0.7",
     "cross-env": "^10.1.0",
-    "electron": "^41.2.2",
+    "electron": "^45.3.1",
+    "electron-builder": "^26.0.12",
     "typescript": "^6.0.3",
-    "vite": "^8.0.9",
+    "vite": "^8.3.8",
     "wait-on": "^9.0.5"
   }
 }

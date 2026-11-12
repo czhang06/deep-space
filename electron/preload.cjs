@@ -1,11 +1,21 @@
+// Runs in a sandbox. Exposes a small, fixed API to the page; the page never gets ipcRenderer itself.
 const { contextBridge, ipcRenderer } = require("electron");
 
-contextBridge.exposeInMainWorld("castlekeeper", {
-  getMeta: () => ipcRenderer.invoke("castle:get-meta"),
-  getSnapshot: () => ipcRenderer.invoke("castle:get-snapshot"),
-  pauseSimulation: () => ipcRenderer.invoke("castle:pause"),
-  resumeSimulation: () => ipcRenderer.invoke("castle:resume"),
-  getRules: () => ipcRenderer.invoke("castle:get-rules"),
-  addRule: (rule) => ipcRenderer.invoke("castle:add-rule", rule),
-  deleteRule: (id) => ipcRenderer.invoke("castle:delete-rule", id)
+contextBridge.exposeInMainWorld("kingdom", {
+  getSnapshot: () => ipcRenderer.invoke("kingdom:get-snapshot"),
+  onSnapshot: (listener) => {
+    const wrapped = (_event, snapshot) => listener(snapshot);
+    ipcRenderer.on("kingdom:snapshot", wrapped);
+    return () => ipcRenderer.removeListener("kingdom:snapshot", wrapped);
+  },
+  setRule: (rule) => ipcRenderer.invoke("kingdom:set-rule", rule),
+  deleteRule: (id) => ipcRenderer.invoke("kingdom:delete-rule", id),
+  pause: (minutes) => ipcRenderer.invoke("kingdom:pause", minutes),
+  resume: () => ipcRenderer.invoke("kingdom:resume"),
+  setOpenAtLogin: (enabled) => ipcRenderer.invoke("kingdom:set-open-at-login", enabled),
+  setPlayAllowance: (minutes) => ipcRenderer.invoke("kingdom:set-play-allowance", minutes),
+  clearHistory: () => ipcRenderer.invoke("kingdom:clear-history"),
+  openMain: () => ipcRenderer.invoke("kingdom:open-main"),
+  hidePopup: () => ipcRenderer.invoke("kingdom:hide-popup"),
+  openDataFolder: () => ipcRenderer.invoke("kingdom:open-data-folder")
 });
