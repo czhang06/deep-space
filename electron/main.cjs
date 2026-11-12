@@ -50,6 +50,24 @@ const CSP = [
   "frame-ancestors 'none'"
 ].join("; ");
 
+/** Tiny local log for errors and startup events (never activity data). Kept under 256 KB. */
+function log(...parts) {
+  try {
+    const file = path.join(app.getPath("userData"), "logs", "main.log");
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    if (fs.existsSync(file) && fs.statSync(file).size > 256 * 1024) {
+      fs.renameSync(file, `${file}.old`);
+    }
+    const text = parts.map((part) => (part instanceof Error ? part.stack : typeof part === "string" ? part : JSON.stringify(part))).join(" ");
+    fs.appendFileSync(file, `${new Date().toISOString()} ${text}\n`);
+  } catch {
+    // Logging must never break the app.
+  }
+}
+
+process.on("uncaughtException", (error) => log("uncaught", error));
+process.on("unhandledRejection", (error) => log("unhandled rejection", error));
+
 app.setName(APP_NAME);
 app.setAppUserModelId(APP_ID);
 app.enableSandbox();
@@ -82,6 +100,7 @@ function main() {
   app.on("second-instance", () => showMain());
 
   app.whenReady().then(() => {
+    log("start", { version: app.getVersion(), packaged: app.isPackaged, hidden: STARTED_HIDDEN });
     serveAppFiles();
     lockDownSession();
 
@@ -122,7 +141,7 @@ function main() {
         }
       });
     }
-  });
+  }).catch((error) => log("startup failed", error));
 
   // Closing windows keeps the app in the tray; only "Quit" from the tray menu exits.
   app.on("window-all-closed", () => {});
@@ -197,6 +216,8 @@ function main() {
       }
     });
     contents.on("will-attach-webview", (event) => event.preventDefault());
+    contents.on("render-process-gone", (_event, details) => log("renderer gone", details));
+    contents.on("did-fail-load", (_event, code, description) => log("page failed to load", { code, description }));
     if (!IS_DEV) {
       contents.on("devtools-opened", () => contents.closeDevTools());
     }
@@ -379,7 +400,18 @@ function main() {
     if (!app.isPackaged) {
       return;
     }
-    app.setLoginItemSettings({ openAtLogin: enabled, path: process.execPath, args: ["--hidden"] });
+    // Windows matches the startup entry by name only, so always remove it and re-add it with
+    // this copy's path. That way a moved or reinstalled app never leaves a stale entry.
+    const item = { name: APP_ID, path: process.execPath, args: ["--hidden"] };
+    try {
+      app.setLoginItemSettings({ ...item, openAtLogin: false });
+      if (enabled) {
+        app.setLoginItemSettings({ ...item, openAtLogin: true });
+      }
+      log("login item", { enabled, launchItems: app.getLoginItemSettings(item).launchItems });
+    } catch (error) {
+      log("login item failed", error);
+    }
   }
 
   function setOpenAtLogin(enabled) {
