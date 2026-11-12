@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../bridge.ts";
+import { PIECES } from "../station/catalog.ts";
 import { resolveStation, stepLabel } from "../station/generator.ts";
 import { journeyAt } from "../station/journey.ts";
+import { resolveUpgrades } from "../station/upgrades.ts";
 import type { Category, Snapshot } from "../types.ts";
 
 export const CATEGORY_LABEL: Record<Category | "paused", string> = {
@@ -24,25 +26,81 @@ export function formatMinutes(minutes: number): string {
 
 export function useBuildStatus(snapshot: Snapshot) {
   const station = resolveStation(snapshot.seed, snapshot.buildPoints);
+  const upgrades = resolveUpgrades(snapshot.seed, snapshot.upgradeLog, snapshot.upgradePoints);
+  const built = station.pieces.length;
+  if (snapshot.mode === "upgrade" && upgrades.current) {
+    const { current } = upgrades;
+    return {
+      upgrading: true,
+      label: `${PIECES[current.kind].name} → Lv ${current.toLevel}`,
+      progress: current.progress,
+      built,
+      coreLevel: upgrades.coreLevel,
+      fullyUpgraded: false,
+      remaining: Math.max(0, current.cost * (1 - current.progress))
+    };
+  }
   return {
+    upgrading: false,
     label: stepLabel(station.current, station.planner),
     progress: station.progress,
-    built: station.pieces.length,
+    built,
+    coreLevel: upgrades.coreLevel,
+    fullyUpgraded: upgrades.fullyUpgraded,
     remaining: station.current ? Math.max(0, station.current.total - snapshot.buildPoints) : 0
   };
+}
+
+/** Build new modules, or level up the ones you have. */
+export function ModeSwitch({ snapshot, compact = false }: { snapshot: Snapshot; compact?: boolean }) {
+  const [saving, setSaving] = useState(false);
+  const choose = async (mode: "build" | "upgrade") => {
+    if (mode === snapshot.mode || saving) {
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.setMode(mode);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className={`segmented segmented--two ${compact ? "segmented--compact" : ""}`} role="group" aria-label="What focused work does">
+      {(["build", "upgrade"] as const).map((mode) => (
+        <button
+          key={mode}
+          type="button"
+          className={snapshot.mode === mode ? "is-on" : ""}
+          aria-pressed={snapshot.mode === mode}
+          disabled={saving}
+          onClick={() => void choose(mode)}
+        >
+          {mode === "build" ? "Build" : "Upgrade"}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 export function BuildStatus({ snapshot }: { snapshot: Snapshot }) {
   const status = useBuildStatus(snapshot);
   const percent = Math.floor(status.progress * 100);
   const slowed = snapshot.aliens.length > 0 || snapshot.damage > 0;
+
+  // Once every module is maxed, upgrade mode has nothing to do, so go back to building.
+  useEffect(() => {
+    if (snapshot.mode === "upgrade" && status.fullyUpgraded && !snapshot.paused) {
+      void api.setMode("build");
+    }
+  }, [snapshot.mode, status.fullyUpgraded, snapshot.paused]);
+
+  const eyebrow = snapshot.damage > 0 ? "Repairing first" : status.upgrading ? "Upgrading" : "Now building";
   return (
     <section className="build" aria-label="Construction">
       <div className="build__row">
-        <span className="eyebrow">{snapshot.damage > 0 ? "Repairing, then building" : "Now building"}</span>
-        <span className="build__count">
-          {status.built} module{status.built === 1 ? "" : "s"}
-        </span>
+        <span className="eyebrow">{eyebrow}</span>
+        <ModeSwitch snapshot={snapshot} compact />
       </div>
       <div className="build__row">
         <strong className="build__name">{status.label}</strong>
@@ -165,8 +223,13 @@ export function NowCard({ snapshot }: { snapshot: Snapshot }) {
 export function StationChips({ snapshot }: { snapshot: Snapshot }) {
   const station = resolveStation(snapshot.seed, snapshot.buildPoints);
   const journey = journeyAt(station.builtSteps, station.progress);
+  const { coreLevel } = resolveUpgrades(snapshot.seed, snapshot.upgradeLog, snapshot.upgradePoints);
+  const modules = station.pieces.length;
   return (
     <ul className="folk" aria-label="Station status">
+      <li className="folk__level" title={`${modules} module${modules === 1 ? "" : "s"}; command core at level ${coreLevel}`}>
+        Lv {coreLevel} {"·"} {modules} module{modules === 1 ? "" : "s"}
+      </li>
       <li title={journey.lap > 1 ? `Lap ${journey.lap} of the solar system` : undefined}>
         <i className="dot tone-work" /> {journey.label}
       </li>

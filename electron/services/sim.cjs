@@ -35,6 +35,13 @@ function createState({ seed = Math.floor(Math.random() * 2 ** 31), now = Date.no
     seed,
     createdAt: now,
     buildPoints: 0,
+    // Upgrade mode: focused work levels up existing modules instead of adding new ones.
+    // upgradeLog records, for each stint in upgrade mode, how far building had got and how
+    // many upgrade points had been spent when it began, so upgrades replay identically even
+    // after more modules are built later.
+    mode: "build",
+    upgradePoints: 0,
+    upgradeLog: [],
     repairDebt: 0,
     aliens: [],
     alienCounter: 0,
@@ -158,7 +165,11 @@ function applyWork(state, minutes, now) {
       pushEvent(state, "The crew patched up the hull.", now);
     }
   }
-  state.buildPoints += points;
+  if (state.mode === "upgrade") {
+    state.upgradePoints += points;
+  } else {
+    state.buildPoints += points;
+  }
 
   const alien = state.aliens[0];
   if (alien) {
@@ -191,6 +202,24 @@ function applyPlay(state, day, now) {
   pushEvent(state, `${alien.name} latched onto the station and ${MISCHIEF[index % MISCHIEF.length]}.`, now);
 }
 
+/** Switches where focused work goes: "build" adds modules, "upgrade" levels up existing ones. */
+function setMode(state, mode, now = Date.now()) {
+  if (mode !== "build" && mode !== "upgrade") {
+    throw new Error("Invalid mode");
+  }
+  if (state.mode === mode) {
+    return state;
+  }
+  if (mode === "upgrade") {
+    state.upgradeLog.push({ buildPoints: state.buildPoints, upgradeFrom: state.upgradePoints });
+    pushEvent(state, "The crew switched to upgrade mode, starting with the command core.", now);
+  } else {
+    pushEvent(state, "The crew went back to building new modules.", now);
+  }
+  state.mode = mode;
+  return state;
+}
+
 function damageCount(state) {
   return Math.max(0, Math.ceil(state.repairDebt / DAMAGE_COST - 1e-9));
 }
@@ -210,6 +239,7 @@ module.exports = {
   isPaused,
   pushEvent,
   reviveState,
+  setMode,
   step,
   today
 };

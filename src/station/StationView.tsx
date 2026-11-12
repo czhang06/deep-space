@@ -8,10 +8,14 @@ import { journeyAt, planetTexture, ringTexture, type Planet } from "./journey.ts
 import { createMaterials } from "./materials.ts";
 import { Alien, AssemblyFrame, CELL, MaterialContext, PieceModel, Ports, Scorch, deckBase, pieceSpan } from "./pieces.tsx";
 import { createRng, hash01 } from "./rng.ts";
+import { MAX_LEVEL, resolveUpgrades, type UpgradeSegment } from "./upgrades.ts";
 
 export interface StationViewProps {
   seed: number;
   buildPoints: number;
+  mode: "build" | "upgrade";
+  upgradePoints: number;
+  upgradeLog: UpgradeSegment[];
   damage: number;
   aliens: number;
   /** the tray popup: fixed zoom, lower resolution */
@@ -26,12 +30,27 @@ function pieceCenter(piece: PlacedPiece): [number, number] {
   return [(piece.x + (piece.w - 1) / 2) * CELL, (piece.z + (piece.d - 1) / 2) * CELL];
 }
 
-function PlacedModel({ piece, levels, linked }: { piece: PlacedPiece; levels: number; linked: boolean[] }) {
+function PlacedModel({ piece, levels, tier, linked }: { piece: PlacedPiece; levels: number; tier: number; linked: boolean[] }) {
   const [x, z] = pieceCenter(piece);
+  // Maxed-out modules grow a touch, so a fully upgraded ship looks heavier.
+  const scale = tier >= MAX_LEVEL ? 1.06 : 1;
   return (
     <group position={[x, 0, z]} rotation={[0, (-piece.rot * Math.PI) / 2, 0]}>
-      <PieceModel kind={piece.kind} levels={levels} variant={piece.variant} />
+      <group scale={scale}>
+        <PieceModel kind={piece.kind} levels={levels} tier={tier} variant={piece.variant} />
+      </group>
       <Ports kind={piece.kind} linked={linked} />
+    </group>
+  );
+}
+
+/** The welding frame around a module while it's being upgraded. */
+function UpgradeFrame({ piece, levels, progress }: { piece: PlacedPiece; levels: number; progress: number }) {
+  const [x, z] = pieceCenter(piece);
+  const [bottom, top] = pieceSpan(piece.kind, levels);
+  return (
+    <group position={[x, 0, z]}>
+      <AssemblyFrame w={piece.w * CELL - 0.2} d={piece.d * CELL - 0.2} bottom={bottom - 0.1} top={top + 0.2} progress={progress} />
     </group>
   );
 }
@@ -43,7 +62,9 @@ function Construction({
   linked,
   from,
   to,
-  progress
+  progress,
+  tier,
+  showFrame
 }: {
   piece: PlacedPiece;
   levels: number;
@@ -51,6 +72,9 @@ function Construction({
   from: number;
   to: number;
   progress: number;
+  tier: number;
+  /** hidden while upgrading, when building is on hold */
+  showFrame: boolean;
 }) {
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), []);
   const materials = useMemo(() => createMaterials([plane]), [plane]);
@@ -71,11 +95,11 @@ function Construction({
     <group ref={group}>
       <MaterialContext.Provider value={materials}>
         <group position={[x, 0, z]} rotation={[0, (-piece.rot * Math.PI) / 2, 0]}>
-          <PieceModel kind={piece.kind} levels={levels} variant={piece.variant} />
+          <PieceModel kind={piece.kind} levels={levels} tier={tier} variant={piece.variant} />
           <Ports kind={piece.kind} linked={linked} />
         </group>
       </MaterialContext.Provider>
-      <group position={[x, 0, z]}>
+      <group position={[x, 0, z]} visible={showFrame}>
         <AssemblyFrame
           w={piece.w * CELL - 0.3}
           d={piece.d * CELL - 0.3}
@@ -354,9 +378,12 @@ function openSide(piece: PlacedPiece, isTaken: (x: number, z: number) => boolean
   return options.length ? options[Math.floor(pick * options.length) % options.length] : null;
 }
 
-function Scene({ seed, buildPoints, damage, aliens, compact = false }: StationViewProps) {
+function Scene({ seed, buildPoints, mode, upgradePoints, upgradeLog, damage, aliens, compact = false }: StationViewProps) {
   const station = resolveStation(seed, buildPoints);
   const { builtSteps, current, planner, progress } = station;
+  const upgrades = useMemo(() => resolveUpgrades(seed, upgradeLog, upgradePoints), [seed, upgradeLog, upgradePoints]);
+  const tierOf = (id: number) => upgrades.levels.get(id) ?? 1;
+  const upgrading = mode === "upgrade" && upgrades.current ? upgrades.current : null;
 
   // Everything below only changes when a step completes, not on every progress tick.
   const layout = useMemo(() => {
@@ -438,14 +465,27 @@ function Scene({ seed, buildPoints, damage, aliens, compact = false }: StationVi
   if (current?.type === "place") {
     const piece = current.piece;
     const [bottom, top] = pieceSpan(piece.kind, piece.baseLevels);
-    construction = <Construction piece={piece} levels={piece.baseLevels} linked={layout.siteLinked} from={bottom} to={top} progress={progress} />;
+    construction = (
+      <Construction piece={piece} levels={piece.baseLevels} linked={layout.siteLinked} from={bottom} to={top} progress={progress} tier={1} showFrame={!upgrading} />
+    );
   } else if (current?.type === "raise") {
     const piece = planner.pieces[current.target];
     const [, top] = pieceSpan(piece.kind, current.level);
     construction = (
-      <Construction piece={piece} levels={current.level} linked={layout.raisingLinked} from={deckBase(piece.kind, current.level)} to={top} progress={progress} />
+      <Construction
+        piece={piece}
+        levels={current.level}
+        linked={layout.raisingLinked}
+        from={deckBase(piece.kind, current.level)}
+        to={top}
+        progress={progress}
+        tier={tierOf(piece.id)}
+        showFrame={!upgrading}
+      />
     );
   }
+
+  const upgradeTarget = upgrading ? layout.pieces.find(({ piece }) => piece.id === upgrading.pieceId)?.piece : undefined;
 
   return (
     <>
@@ -455,9 +495,12 @@ function Scene({ seed, buildPoints, damage, aliens, compact = false }: StationVi
       <group ref={float}>
         <group position={[-layout.center[0], 0, -layout.center[1]]}>
           {layout.pieces.map(({ piece, linked }) => (
-            <PlacedModel key={piece.id} piece={piece} levels={piece.levels} linked={linked} />
+            <PlacedModel key={piece.id} piece={piece} levels={piece.levels} tier={tierOf(piece.id)} linked={linked} />
           ))}
           {construction}
+          {upgrading && upgradeTarget ? (
+            <UpgradeFrame piece={upgradeTarget} levels={(upgradeTarget as PlacedPiece & { levels: number }).levels} progress={upgrading.progress} />
+          ) : null}
           {layout.spots.map((spot, index) => (
             <group key={spot.key} position={spot.position} rotation={[0, spot.facing, 0]}>
               {index < damage ? <Scorch seed={index * 3 + 1} /> : null}

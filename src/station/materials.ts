@@ -1,20 +1,26 @@
 import * as THREE from "three";
 
-// One palette for the whole station: off-white hull panels, graphite trusses, a single
-// orange accent, deep-blue solar cells, warm window light, and an acid-green alien glow.
+// One palette for the whole ship: light-grey hull plates over darker structure, a single
+// red-orange warship accent, gunmetal trim, cool white windows, cyan engines and energy lines,
+// and an acid-green alien glow.
 export const PALETTE = {
-  hull: "#e9ecef",
-  hullShade: "#c9ced6",
-  panel: "#aab2bd",
-  graphite: "#4b525d",
-  truss: "#7d8592",
-  accent: "#f08a3c",
-  accentBlue: "#3f7fd6",
-  gold: "#d9a94a",
-  solar: "#1f3570",
-  solarFrame: "#8a93a1",
+  hull: "#c7ccd4",
+  hullShade: "#9ba2ae",
+  panel: "#7c8492",
+  plate: "#adb3bd",
+  graphite: "#3a3f48",
+  truss: "#5c636f",
+  gunmetal: "#596170",
+  accent: "#d9482b",
+  accentBlue: "#3d6fd1",
+  gold: "#c9a253",
+  solar: "#1b2747",
+  solarFrame: "#6f7887",
   window: "#2a2f3a",
-  windowGlow: "#ffd18a",
+  windowGlow: "#d6efff",
+  engine: "#6fdcff",
+  energy: "#57d6ff",
+  beacon: "#ff4636",
   glass: "#9fe3ff",
   plant: "#62b85a",
   plantDark: "#3f8a45",
@@ -31,6 +37,9 @@ export type MaterialSet = Record<MaterialName, THREE.MeshStandardMaterial>;
 
 const GLOWING: Partial<Record<MaterialName, number>> = {
   window: 1.3,
+  engine: 3.2,
+  energy: 2.4,
+  beacon: 3,
   spark: 2.5,
   alienGlow: 2.2,
   accentBlue: 0.15,
@@ -41,8 +50,8 @@ function makeMaterial(name: MaterialName, clippingPlanes: THREE.Plane[] = []) {
   const material = new THREE.MeshStandardMaterial({
     color: PALETTE[name],
     flatShading: true,
-    roughness: name === "solar" || name === "glass" ? 0.35 : name === "gold" ? 0.4 : 0.75,
-    metalness: name === "gold" || name === "truss" || name === "solarFrame" ? 0.5 : name === "solar" ? 0.3 : 0.05,
+    roughness: name === "solar" || name === "glass" ? 0.35 : name === "gold" || name === "gunmetal" ? 0.4 : 0.62,
+    metalness: name === "gold" || name === "gunmetal" ? 0.65 : name === "truss" || name === "solarFrame" || name === "solar" ? 0.4 : 0.18,
     clippingPlanes,
     clipShadows: clippingPlanes.length > 0,
     transparent: name === "glass",
@@ -99,5 +108,49 @@ export const geo = {
   torus: (radius: number, tube: number) =>
     cached(`torus:${r(radius)}:${r(tube)}`, () => new THREE.TorusGeometry(radius, tube, 8, 28)),
   ico: (radius: number, detail = 0) =>
-    cached(`ico:${r(radius)}:${detail}`, () => new THREE.IcosahedronGeometry(radius, detail))
+    cached(`ico:${r(radius)}:${detail}`, () => new THREE.IcosahedronGeometry(radius, detail)),
+  /** Angular ring: square cross-section, `sides` straight segments around. */
+  hexRing: (radius: number, tube: number, sides = 6) =>
+    cached(`hexring:${r(radius)}:${r(tube)}:${sides}`, () => new THREE.TorusGeometry(radius, tube, 4, sides)),
+  /** Faceted dome. */
+  facetDome: (radius: number) =>
+    cached(`facetdome:${r(radius)}`, () => new THREE.SphereGeometry(radius, 6, 3, 0, Math.PI * 2, 0, Math.PI / 2)),
+  /**
+   * A flat outline (x, z pairs, viewed from above) extruded upward by `height` and centred on
+   * y = 0, with a small chamfer on the edges so plates catch the light like machined metal.
+   */
+  prism: (outline: Array<[number, number]>, height: number, chamfer = 0.04) =>
+    cached(`prism:${outline.map(([x, z]) => `${r(x)},${r(z)}`).join(";")}:${r(height)}:${r(chamfer)}`, () => {
+      const shape = new THREE.Shape();
+      outline.forEach(([x, z], index) => (index === 0 ? shape.moveTo(x, -z) : shape.lineTo(x, -z)));
+      shape.closePath();
+      const bevel = Math.min(chamfer, height / 3);
+      const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: Math.max(0.001, height - bevel * 2),
+        bevelEnabled: bevel > 0,
+        bevelThickness: bevel,
+        bevelSize: bevel,
+        bevelSegments: 1
+      });
+      geometry.rotateX(-Math.PI / 2);
+      geometry.translate(0, -height / 2 + bevel, 0);
+      return geometry;
+    }),
+  /** A box with its vertical corners cut off. */
+  chamferBox: (w: number, h: number, d: number, cut = 0.18) => {
+    const c = Math.min(cut, w / 3, d / 3);
+    return geo.prism(
+      [
+        [-w / 2 + c, -d / 2],
+        [w / 2 - c, -d / 2],
+        [w / 2, -d / 2 + c],
+        [w / 2, d / 2 - c],
+        [w / 2 - c, d / 2],
+        [-w / 2 + c, d / 2],
+        [-w / 2, d / 2 - c],
+        [-w / 2, -d / 2 + c]
+      ],
+      h
+    );
+  }
 };

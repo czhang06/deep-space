@@ -383,7 +383,7 @@ function main() {
     const label = snapshot.paused ? "paused" : snapshot.now.category;
     tray.setToolTip(snapshot.paused ? `${APP_NAME}: tracking paused` : `${APP_NAME}: ${label}`);
 
-    const key = `${snapshot.paused}|${snapshot.settings.openAtLogin}`;
+    const key = `${snapshot.paused}|${snapshot.settings.openAtLogin}|${snapshot.mode}`;
     if (key === menuKey) {
       return;
     }
@@ -400,6 +400,9 @@ function main() {
               { label: "Pause for 1 hour", click: () => kingdom.pause(60) },
               { label: "Pause until I resume", click: () => kingdom.pause(null) }
             ]),
+        { type: "separator" },
+        { label: "Build new modules", type: "radio", checked: snapshot.mode !== "upgrade", click: () => kingdom.setMode("build") },
+        { label: "Upgrade existing modules", type: "radio", checked: snapshot.mode === "upgrade", click: () => kingdom.setMode("upgrade") },
         { type: "separator" },
         {
           label: "Start with Windows",
@@ -493,6 +496,12 @@ function main() {
         throw new Error("Invalid allowance");
       }
       return kingdom.updateSettings({ playAllowanceMinutes: minutes });
+    });
+    handle("kingdom:set-mode", (mode) => {
+      if (mode !== "build" && mode !== "upgrade") {
+        throw new Error("Invalid mode");
+      }
+      return kingdom.setMode(mode);
     });
     handle("kingdom:clear-history", () => kingdom.clearHistory());
     handle("kingdom:open-main", () => showMain());

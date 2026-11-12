@@ -184,6 +184,13 @@ class KingdomService extends EventEmitter {
     return this.getSnapshot();
   }
 
+  setMode(mode) {
+    sim.setMode(this.state, mode);
+    this.save(true);
+    this.emitSnapshot();
+    return this.getSnapshot();
+  }
+
   updateSettings(patch) {
     this.state.settings = { ...this.state.settings, ...patch };
     this.save(true);
@@ -220,6 +227,9 @@ class KingdomService extends EventEmitter {
     return {
       seed: this.state.seed,
       buildPoints: this.state.buildPoints,
+      mode: this.state.mode,
+      upgradePoints: this.state.upgradePoints,
+      upgradeLog: this.state.upgradeLog,
       damage: sim.damageCount(this.state),
       aliens: this.state.aliens.map((alien) => ({ id: alien.id, name: alien.name })),
       streakMinutes: this.state.streak.category === "work" ? Math.round(this.state.streak.minutes) : 0,

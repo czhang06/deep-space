@@ -15,6 +15,9 @@ function previewApi(): KingdomApi {
   let snapshot: Snapshot = {
     seed: number("seed", 20261111),
     buildPoints: number("points", 420),
+    mode: params.get("mode") === "upgrade" ? "upgrade" : "build",
+    upgradePoints: number("upgrade", 0),
+    upgradeLog: params.has("upgrade") || params.get("mode") === "upgrade" ? [{ buildPoints: number("points", 420), upgradeFrom: 0 }] : [],
     damage: number("damage", 0),
     aliens: Array.from({ length: number("aliens", 0) }, (_, index) => ({ id: `a${index}`, name: ["Gloop", "Zib", "Xorvak"][index % 3] })),
     streakMinutes: 32,
@@ -56,7 +59,10 @@ function previewApi(): KingdomApi {
   };
 
   if (params.get("grow")) {
-    window.setInterval(() => publish({ buildPoints: snapshot.buildPoints + number("grow", 2) }), 1000);
+    window.setInterval(() => {
+      const step = number("grow", 2);
+      publish(snapshot.mode === "upgrade" ? { upgradePoints: snapshot.upgradePoints + step } : { buildPoints: snapshot.buildPoints + step });
+    }, 1000);
   }
 
   return {
@@ -75,6 +81,14 @@ function previewApi(): KingdomApi {
     resume: () => publish({ paused: false, pausedUntil: null, now: { ...snapshot.now, category: snapshot.now.rawCategory, display: "GitHub · Chrome" } }),
     setOpenAtLogin: (enabled) => publish({ settings: { ...snapshot.settings, openAtLogin: enabled } }),
     setPlayAllowance: (minutes) => publish({ settings: { ...snapshot.settings, playAllowanceMinutes: minutes }, today: { ...snapshot.today, playAllowance: minutes } }),
+    setMode: (mode) => {
+      if (mode === snapshot.mode) {
+        return Promise.resolve(snapshot);
+      }
+      const upgradeLog =
+        mode === "upgrade" ? [...snapshot.upgradeLog, { buildPoints: snapshot.buildPoints, upgradeFrom: snapshot.upgradePoints }] : snapshot.upgradeLog;
+      return publish({ mode, upgradeLog });
+    },
     clearHistory: () => publish({ today: { work: 0, play: 0, idle: 0, neutral: 0, playAllowance: snapshot.today.playAllowance, top: [] }, events: [] }),
     openMain: () => Promise.resolve(),
     hidePopup: () => Promise.resolve(),

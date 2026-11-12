@@ -19,6 +19,9 @@ export default function MainApp() {
           <StationView
             seed={snapshot.seed}
             buildPoints={snapshot.buildPoints}
+            mode={snapshot.mode}
+            upgradePoints={snapshot.upgradePoints}
+            upgradeLog={snapshot.upgradeLog}
             damage={snapshot.damage}
             aliens={snapshot.aliens.length}
           />

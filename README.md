@@ -1,8 +1,10 @@
 # Deep Space
 
-A little space station that lives in your Windows system tray and grows while you focus.
+A little warship-style space station that lives in your Windows system tray and grows while you focus.
 
 Focused work snaps new modules onto the station: corridors, hab nodes that stack into towers, lab modules, docking ports with shuttles, observatories, solar arrays, greenhouse domes, comms dishes and, later on, spinning ring habitats. As it grows, the station drifts outward through the solar system, past Mercury, Venus, Earth and Mars out to Jupiter, Saturn, Uranus, Neptune and Pluto, then starts another lap.
+
+Flip to **Upgrade mode** (popup, Settings or tray menu) and focused work levels up the modules you already have instead, Clash-of-Clans style: the command core goes first, then the upgrade ripples outward, and nothing reaches the next level until everything reachable has the current one. Each of the five levels adds visible detail: armour plating, red stripes and beacons, gunmetal trim and surface detail, then glowing energy lines. When everything is maxed it switches back to building.
 
 Breaks cost nothing. Play is free up to a daily allowance; past that, aliens latch onto the hull, scorch it and slow construction until more work repairs the damage and pries them off.
 
@@ -27,7 +29,7 @@ A new category has to hold for a minute before it counts, so a quick alt-tab doe
 
 ## How the station grows
 
-The station is generated jigsaw-style from a fixed seed. Every module has docking ports (corridor ends, node sides, side mounts), and each new module snaps onto an open port whose pool allows it. Some steps add a deck to a hab node or the command core instead. The plan is deterministic, so the station is rebuilt exactly from `(seed, build points)` and never reshuffles. One build point is one focused minute (1.5× once a streak passes 25 minutes), and later modules cost more. Every 10 finished steps moves the station on to the next planet.
+The station is generated jigsaw-style from a fixed seed. Every module has docking ports (corridor ends, node sides, side mounts), and each new module snaps onto an open port whose pool allows it. Some steps add a deck to a hab node or the command core instead. The plan is deterministic, so the station is rebuilt exactly from `(seed, build points)` and never reshuffles. One build point is one focused minute (1.5× once a streak passes 25 minutes), and later modules cost more. Every 10 finished steps moves the station on to the next planet. Upgrades are derived the same way: the app logs where building stood each time you enter upgrade mode, so replaying that log gives identical levels, and modules built later never reshuffle earlier upgrades.
 
 ## Development
 
@@ -40,12 +42,12 @@ npm run check          # TypeScript
 npm run dist           # tests + build + Windows installer in release/
 ```
 
-Browser-preview knobs: `?points=900&damage=1&aliens=2&grow=5` (`grow` adds points every second).
+Browser-preview knobs: `?points=900&damage=1&aliens=2&grow=5&mode=upgrade&upgrade=700` (`grow` adds points every second).
 
 | Path | What |
 | --- | --- |
 | `electron/main.cjs` | Tray, popup and main windows, `app://` protocol, security hardening, IPC |
 | `electron/services/` | Foreground watcher, classifier, simulation, storage |
-| `src/station/` | Module catalog, jigsaw generator, 3D modules, solar-system journey, scene |
+| `src/station/` | Module catalog, jigsaw generator, upgrade planner, 3D modules and upgrade tiers, solar-system journey, scene |
 | `src/ui/` | Popup, main window, settings |
 | `scripts/make-icons.mjs` | Draws the app and tray icons |

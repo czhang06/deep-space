@@ -1,7 +1,7 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import { api, isPreview } from "../bridge.ts";
 import type { Snapshot } from "../types.ts";
-import { CATEGORY_LABEL, formatMinutes } from "./parts.tsx";
+import { CATEGORY_LABEL, ModeSwitch, formatMinutes } from "./parts.tsx";
 
 function pauseLabel(snapshot: Snapshot) {
   if (!snapshot.paused) {
@@ -89,6 +89,16 @@ export function Settings({ snapshot, onClose }: { snapshot: Snapshot; onClose: (
               </>
             )}
           </div>
+        </section>
+
+        <section className="sheet__section">
+          <h3>Focus goes to</h3>
+          <ModeSwitch snapshot={snapshot} />
+          <p className="muted">
+            {snapshot.mode === "upgrade"
+              ? "Upgrading existing modules to level 5, starting with the command core and working outward. When everything is maxed, it goes back to building."
+              : "Building new modules. Switch to Upgrade to level up the ones you have instead."}
+          </p>
         </section>
 
         <section className="sheet__section">

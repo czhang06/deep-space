@@ -10,6 +10,9 @@ export interface Rule {
 export interface Snapshot {
   seed: number;
   buildPoints: number;
+  mode: "build" | "upgrade";
+  upgradePoints: number;
+  upgradeLog: Array<{ buildPoints: number; upgradeFrom: number }>;
   damage: number;
   aliens: Array<{ id: string; name: string }>;
   streakMinutes: number;
@@ -45,6 +48,7 @@ export interface KingdomApi {
   resume(): Promise<Snapshot>;
   setOpenAtLogin(enabled: boolean): Promise<Snapshot>;
   setPlayAllowance(minutes: number): Promise<Snapshot>;
+  setMode(mode: "build" | "upgrade"): Promise<Snapshot>;
   clearHistory(): Promise<Snapshot>;
   openMain(): Promise<void>;
   hidePopup(): Promise<void>;

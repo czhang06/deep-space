@@ -61,6 +61,24 @@ test("the allowance resets each day", () => {
   assert.equal(state.aliens.length, 0);
 });
 
+test("upgrade mode sends work to upgrades and logs where building stood", () => {
+  const state = sim.createState({ seed: 1 });
+  run(state, "work", 20);
+  sim.setMode(state, "upgrade", NOON);
+  run(state, "neutral", 1); // end the streak so the 1.5x bonus doesn't kick in
+  run(state, "work", 10);
+  assert.equal(Math.round(state.buildPoints), 20);
+  assert.equal(Math.round(state.upgradePoints), 10);
+  assert.deepEqual(state.upgradeLog, [{ buildPoints: 20, upgradeFrom: 0 }]);
+
+  sim.setMode(state, "upgrade", NOON); // no-op when already upgrading
+  assert.equal(state.upgradeLog.length, 1);
+  sim.setMode(state, "build", NOON);
+  run(state, "work", 5);
+  assert.equal(Math.round(state.buildPoints), 25);
+  assert.throws(() => sim.setMode(state, "demolish"));
+});
+
 test("pauses expire", () => {
   const state = sim.createState({ seed: 1 });
   state.pausedUntil = NOON + 60000;

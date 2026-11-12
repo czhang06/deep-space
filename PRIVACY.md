@@ -28,7 +28,7 @@ That file holds:
 - **Per-app and per-site minutes**: for each day, minutes spent per app (for example "Visual Studio Code") or recognised site (for example "YouTube"). Sites the app doesn't recognise are grouped as "Other sites in Chrome", so page titles are never written down.
 - **Your rules**: the apps and sites you have told it to count as work, play or neutral.
 - **Your settings**: whether it starts with Windows, your daily free play time, and pause state.
-- **The station**: a random seed, the station's build progress, any aliens currently latched on, and the last few station events (for example "The crew pried Gloop off the hull and sent it drifting.").
+- **The station**: a random seed, the station's build progress, whether you're building or upgrading and how far upgrades have got, any aliens currently latched on, and the last few station events (for example "The crew pried Gloop off the hull and sent it drifting.").
 
 ## What the app never collects
 
