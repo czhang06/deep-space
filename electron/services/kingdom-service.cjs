@@ -9,7 +9,7 @@ const MAX_SLICE_MINUTES = 15 / 60; // sleep/hibernate gaps never count as time
 const IDLE_AFTER_SECONDS = 5 * 60;
 const SWITCH_AFTER_SECONDS = 60; // a new category must hold this long before it counts
 const SAVE_EVERY_MS = 30000;
-const OWN_PROCESSES = new Set(["electron", "tiny kingdom"]);
+const OWN_PROCESSES = new Set(["electron", "deep space", "tiny kingdom"]);
 
 /**
  * Ties the pieces together: samples the foreground app and idle time, smooths quick
@@ -83,7 +83,7 @@ class KingdomService extends EventEmitter {
     } else if (!this.raw) {
       this.raw = classify(this.lastSample ?? {}, this.state.rules);
     }
-    // Looking at Tiny Kingdom itself keeps whatever you were doing before.
+    // Looking at Deep Space itself keeps whatever you were doing before.
 
     this.smooth(this.raw.category, now);
 

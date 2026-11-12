@@ -15,7 +15,7 @@ const {
 } = require("electron");
 const { KingdomService } = require("./services/kingdom-service.cjs");
 
-const APP_NAME = "Tiny Kingdom";
+const APP_NAME = "Deep Space";
 const APP_ID = "com.czhang.tinykingdom";
 const DEV_URL = process.env.VITE_DEV_SERVER_URL || "";
 const IS_DEV = Boolean(DEV_URL) && !app.isPackaged;
@@ -104,8 +104,10 @@ function main() {
     serveAppFiles();
     lockDownSession();
 
+    const dataDir = path.join(app.getPath("userData"), "data");
+    carryOverOldData(dataDir);
     kingdom = new KingdomService({
-      dataDir: path.join(app.getPath("userData"), "data"),
+      dataDir,
       getIdleSeconds: () => powerMonitor.getSystemIdleTime()
     });
     kingdom.on("snapshot", (snapshot) => {
@@ -149,6 +151,24 @@ function main() {
     quitting = true;
     kingdom?.stop();
   });
+
+  /**
+   * The app used to be called "Tiny Kingdom", and its data lived under that name. On the first
+   * launch as Deep Space, copy the station, rules and history across (the old folder is left as is).
+   */
+  function carryOverOldData(dataDir) {
+    const target = path.join(dataDir, "kingdom.json");
+    const source = path.join(app.getPath("appData"), "Tiny Kingdom", "data", "kingdom.json");
+    try {
+      if (!fs.existsSync(target) && fs.existsSync(source)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+        fs.copyFileSync(source, target);
+        log("carried over data from Tiny Kingdom");
+      }
+    } catch (error) {
+      log("could not carry over old data", error);
+    }
+  }
 
   // ---- serving the UI ----------------------------------------------------------------
 
@@ -371,7 +391,7 @@ function main() {
     tray.setImage(trayImage(snapshot.paused));
     tray.setContextMenu(
       Menu.buildFromTemplate([
-        { label: "Open Tiny Kingdom", click: showMain },
+        { label: "Open Deep Space", click: showMain },
         { type: "separator" },
         ...(snapshot.paused
           ? [{ label: "Resume tracking", click: () => kingdom.resume() }]
@@ -388,7 +408,7 @@ function main() {
           click: (item) => setOpenAtLogin(item.checked)
         },
         { type: "separator" },
-        { label: "Quit Tiny Kingdom", click: () => app.quit() }
+        { label: "Quit Deep Space", click: () => app.quit() }
       ])
     );
   }
@@ -425,7 +445,7 @@ function main() {
     const handle = (channel, handler) => {
       ipcMain.handle(channel, (event, ...args) => {
         if (!isAppUrl(event.senderFrame?.url ?? "")) {
-          throw new Error("Blocked: request did not come from Tiny Kingdom");
+          throw new Error("Blocked: request did not come from Deep Space");
         }
         return handler(...args);
       });

@@ -23,7 +23,7 @@ export default function PopupApp() {
           />
         </Suspense>
         <header className="popup__bar">
-          <span className="wordmark">Tiny Kingdom</span>
+          <span className="wordmark">Deep Space</span>
           <div className="popup__actions">
             <button
               type="button"

@@ -1,4 +1,4 @@
-// Draws the Tiny Kingdom station mark and writes the app and tray icons as PNGs.
+// Draws the Deep Space station mark and writes the app and tray icons as PNGs.
 // Run with: node scripts/make-icons.mjs   (no dependencies; uses zlib for PNG encoding)
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";

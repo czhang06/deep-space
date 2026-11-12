@@ -1,4 +1,4 @@
-# Tiny Kingdom
+# Deep Space
 
 A little space station that lives in your Windows system tray and grows while you focus.
 
@@ -10,7 +10,7 @@ Everything runs locally. See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY
 
 ## Using it
 
-- **Install**: run `release/Tiny Kingdom Setup <version>.exe`. It installs for your user only and adds a desktop shortcut and a Start-menu entry.
+- **Install**: run `release/Deep Space Setup <version>.exe`. It installs for your user only and adds a desktop shortcut and a Start-menu entry.
 - **Tray**: click the station icon by the clock for a quick look. Right-click it to pause, toggle "Start with Windows", or quit.
 - **Main window**: the desktop shortcut, or the expand button in the popup, opens the full view. Closing it keeps the app running in the tray.
 - **Wrong category?** "Right now" shows what's in front. Click Work, Play or Neutral to always count that app or site that way.

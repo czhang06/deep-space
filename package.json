@@ -1,6 +1,6 @@
 {
   "name": "tiny-kingdom",
-  "productName": "Tiny Kingdom",
+  "productName": "Deep Space",
   "version": "0.2.0",
   "private": true,
   "description": "A little space station in your system tray that grows while you focus.",
@@ -20,7 +20,7 @@
   },
   "build": {
     "appId": "com.czhang.tinykingdom",
-    "productName": "Tiny Kingdom",
+    "productName": "Deep Space",
     "copyright": "Copyright (c) 2026 czhang06",
     "directories": {
       "output": "release",
@@ -50,7 +50,7 @@
       "perMachine": false,
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
-      "shortcutName": "Tiny Kingdom",
+      "shortcutName": "Deep Space",
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": false
     },

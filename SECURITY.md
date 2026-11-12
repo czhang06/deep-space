@@ -2,11 +2,11 @@
 
 ## Reporting a problem
 
-Please open a GitHub issue titled "Security" without exploit details, and I'll arrange a private way to share them. Tiny Kingdom is a hobby project, so fixes are best-effort.
+Please open a GitHub issue titled "Security" without exploit details, and I'll arrange a private way to share them. Deep Space is a hobby project, so fixes are best-effort.
 
 ## How the app is locked down
 
-Tiny Kingdom watches which app is in front, so it should be hard to misuse. The design:
+Deep Space watches which app is in front, so it should be hard to misuse. The design:
 
 **No network surface**
 - The UI is served from a custom `app://` protocol, not a local web server, so the app opens no ports.
@@ -29,7 +29,7 @@ Tiny Kingdom watches which app is in front, so it should be hard to misuse. The 
 - Window titles stay in memory. Only per-app and recognised-site minutes are written to disk. See [PRIVACY.md](PRIVACY.md).
 
 **Data on disk**
-- One JSON file under `%APPDATA%\Tiny Kingdom\data`, written atomically (temp file + rename) so a crash can't corrupt it.
+- One JSON file under `%APPDATA%\Deep Space\data`, written atomically (temp file + rename) so a crash can't corrupt it.
 - Old prototype logs that held window titles are deleted on first launch.
 
 ## Known limitations

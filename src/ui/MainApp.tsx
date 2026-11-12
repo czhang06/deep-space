@@ -27,7 +27,7 @@ export default function MainApp() {
 
       <header className="main__top">
         <div className="card card--title">
-          <span className="wordmark wordmark--large">Tiny Kingdom</span>
+          <span className="wordmark wordmark--large">Deep Space</span>
           <StationChips snapshot={snapshot} />
         </div>
         <button type="button" className="icon-button icon-button--glass icon-button--large" onClick={() => setSettingsOpen(true)} aria-label="Settings" title="Settings">

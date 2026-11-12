@@ -1,12 +1,12 @@
-# Tiny Kingdom Privacy Policy
+# Deep Space Privacy Policy
 
 _Last updated: 12 November 2026_
 
-Tiny Kingdom is a desktop app that turns your focused computer time into a growing space station. This policy explains what it looks at, what it keeps, and what it never does. The short version: **everything stays on your computer, and nothing is ever sent anywhere.**
+Deep Space is a desktop app that turns your focused computer time into a growing space station. This policy explains what it looks at, what it keeps, and what it never does. The short version: **everything stays on your computer, and nothing is ever sent anywhere.**
 
 ## Who is responsible
 
-Tiny Kingdom is a personal project by czhang06. There is no company, server, or account behind it. Questions can be raised as an issue on the project's GitHub repository.
+Deep Space is a personal project by czhang06. There is no company, server, or account behind it. Questions can be raised as an issue on the project's GitHub repository.
 
 ## What the app looks at while it runs
 
@@ -20,7 +20,7 @@ Tiny Kingdom is a personal project by czhang06. There is no company, server, or 
 ## What the app stores
 
 Everything is stored in one file on your computer:
-`%APPDATA%\Tiny Kingdom\data\kingdom.json`
+`%APPDATA%\Deep Space\data\kingdom.json`
 
 That file holds:
 
@@ -41,23 +41,25 @@ That file holds:
 
 ## Network and third parties
 
-Tiny Kingdom makes **no network connections**. It has no analytics, crash reporting, advertising, update checks or telemetry, and it shares nothing with anyone. The app's windows load only from the app's own files and block every other request.
+Deep Space makes **no network connections**. It has no analytics, crash reporting, advertising, update checks or telemetry, and it shares nothing with anyone. The app's windows load only from the app's own files and block every other request.
 
 ## Your controls
 
 - **Pause**: pause tracking for 30 minutes, an hour, or until you resume, from the tray menu or Settings.
 - **Correct**: tell it an app or site is work, play or neutral, and remove those rules at any time.
 - **Clear history**: Settings → Privacy → Clear history deletes all daily records and events, keeping your station and rules.
-- **Delete everything**: quit the app, uninstall it from Windows Settings → Apps, and delete the `%APPDATA%\Tiny Kingdom` folder.
+- **Delete everything**: quit the app, uninstall it from Windows Settings → Apps, and delete the `%APPDATA%\Deep Space` folder.
 - **Start with Windows**: turn it on or off in Settings or the tray menu.
 
 ## Earlier versions
+
+Deep Space was previously called Tiny Kingdom. On its first launch under the new name it copies your station, rules and history from `%APPDATA%\Tiny Kingdom\data` to the new folder. The old folder is left in place, and you can delete it.
 
 The first prototype (version 0.1) stored full window and tab titles in `activity-log.json` and `browser-event-log.json`. Version 0.2 deletes those files the first time it starts.
 
 ## Children
 
-Tiny Kingdom collects no personal information from anyone, including children.
+Deep Space collects no personal information from anyone, including children.
 
 ## Changes
 

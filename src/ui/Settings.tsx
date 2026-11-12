@@ -17,7 +17,7 @@ export function PrivacyNotice() {
   return (
     <div className="privacy">
       <p>
-        Tiny Kingdom runs entirely on this computer. It has no account, sends nothing over the internet, and contains
+        Deep Space runs entirely on this computer. It has no account, sends nothing over the internet, and contains
         no analytics.
       </p>
       <h4>What it looks at</h4>
@@ -99,7 +99,7 @@ export function Settings({ snapshot, onClose }: { snapshot: Snapshot; onClose: (
               checked={snapshot.settings.openAtLogin}
               onChange={(event) => void api.setOpenAtLogin(event.target.checked)}
             />
-            <span>Start Tiny Kingdom when Windows starts</span>
+            <span>Start Deep Space when Windows starts</span>
           </label>
           <p className="muted">It opens quietly in the system tray, by the clock.</p>
         </section>

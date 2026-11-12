@@ -1,5 +1,5 @@
 # Long-lived helper: prints one JSON line describing the foreground window every couple of seconds.
-# Started once by Tiny Kingdom and exits on its own when the app (its parent) goes away.
+# Started once by Deep Space and exits on its own when the app (its parent) goes away.
 # Nothing here is written to disk; the app keeps window titles in memory only.
 param(
     [int]$ParentPid = 0,
