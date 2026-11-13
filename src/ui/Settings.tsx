@@ -3,6 +3,26 @@ import { api, isPreview } from "../bridge.ts";
 import type { Snapshot } from "../types.ts";
 import { CATEGORY_LABEL, ModeSwitch, formatMinutes } from "./parts.tsx";
 
+function updateLabel(snapshot: Snapshot): string {
+  const update = snapshot.app.update;
+  switch (update.state) {
+    case "unavailable":
+      return "Updates only work in the installed app.";
+    case "checking":
+      return "Checking for updates…";
+    case "downloading":
+      return `Downloading version ${update.version}${update.percent ? ` (${update.percent}%)` : ""}…`;
+    case "ready":
+      return `Version ${update.version} is ready. It installs next time Deep Space restarts.`;
+    case "current":
+      return "You're on the latest version.";
+    case "error":
+      return update.message ?? "Couldn't check for updates.";
+    default:
+      return snapshot.settings.autoUpdate ? "Checks for updates every few hours." : "Automatic updates are off.";
+  }
+}
+
 function pauseLabel(snapshot: Snapshot) {
   if (!snapshot.paused) {
     return "Tracking is on.";
@@ -17,8 +37,9 @@ export function PrivacyNotice() {
   return (
     <div className="privacy">
       <p>
-        Deep Space runs entirely on this computer. It has no account, sends nothing over the internet, and contains
-        no analytics.
+        Deep Space runs entirely on this computer. It has no account and no analytics, and never sends your
+        activity anywhere. The only thing it fetches from the internet is new versions of itself, from GitHub (you
+        can turn that off under Updates).
       </p>
       <h4>What it looks at</h4>
       <ul>
@@ -166,6 +187,34 @@ export function Settings({ snapshot, onClose }: { snapshot: Snapshot; onClose: (
               ))}
             </ul>
           )}
+        </section>
+
+        <section className="sheet__section">
+          <h3>Updates</h3>
+          <p className="muted">
+            Version {snapshot.app.version || "unknown"}. {updateLabel(snapshot)}
+          </p>
+          <label className="toggle">
+            <input type="checkbox" checked={snapshot.settings.autoUpdate} onChange={(event) => void api.setAutoUpdate(event.target.checked)} />
+            <span>Keep Deep Space up to date automatically</span>
+          </label>
+          <div className="button-row">
+            {snapshot.app.update.state === "ready" ? (
+              <button type="button" className="button button--primary" onClick={() => void api.installUpdate()}>
+                Restart and update
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="button"
+                disabled={snapshot.app.update.state === "unavailable" || snapshot.app.update.state === "checking" || snapshot.app.update.state === "downloading"}
+                onClick={() => void api.checkForUpdates()}
+              >
+                Check now
+              </button>
+            )}
+          </div>
+          <p className="muted">Updates come from the app's GitHub releases. Checking sends nothing about you or your activity.</p>
         </section>
 
         <section className="sheet__section">

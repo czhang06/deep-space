@@ -2,7 +2,7 @@
 
 _Last updated: 12 November 2026_
 
-Deep Space is a desktop app that turns your focused computer time into a growing space station. This policy explains what it looks at, what it keeps, and what it never does. The short version: **everything stays on your computer, and nothing is ever sent anywhere.**
+Deep Space is a desktop app that turns your focused computer time into a growing space station. This policy explains what it looks at, what it keeps, and what it never does. The short version: **your activity stays on your computer and is never sent anywhere.** The only internet connection the app makes is to check GitHub for new versions of itself, and you can turn that off.
 
 ## Who is responsible
 
@@ -41,7 +41,9 @@ That file holds:
 
 ## Network and third parties
 
-Deep Space makes **no network connections**. It has no analytics, crash reporting, advertising, update checks or telemetry, and it shares nothing with anyone. The app's windows load only from the app's own files and block every other request.
+Deep Space has no analytics, crash reporting, advertising or telemetry, and it shares nothing about you or your activity with anyone. The app's windows load only from the app's own files and block every other request.
+
+**Update checks.** The installed app checks the GitHub releases of [czhang06/deep-space](https://github.com/czhang06/deep-space) for a newer version about every six hours, and downloads it if there is one. These requests go to GitHub (github.com and its download servers), which sees your IP address and the app's version, as with any download, under [GitHub's privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement). Nothing about your activity, rules or ship is included. Turn this off in Settings → Updates and the app makes no network connections at all.
 
 ## Your controls
 

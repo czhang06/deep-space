@@ -8,10 +8,15 @@ Please open a GitHub issue titled "Security" without exploit details, and I'll a
 
 Deep Space watches which app is in front, so it should be hard to misuse. The design:
 
-**No network surface**
+**Small network surface**
 - The UI is served from a custom `app://` protocol, not a local web server, so the app opens no ports.
-- Every request that isn't the app's own files is blocked at the session level.
-- There are no update checks, analytics or remote content.
+- Every request from the app's windows that isn't the app's own files is blocked at the session level.
+- There are no analytics or remote content. The only outbound traffic is the update check (below), which runs in the main process on its own session and can be turned off.
+
+**Updates**
+- The installed app uses electron-updater to read `latest.yml` from the newest GitHub release of czhang06/deep-space over HTTPS, download the installer, and verify its SHA-512 against `latest.yml` before installing.
+- Downgrades and pre-releases are refused.
+- The installer isn't code-signed yet, so the update's integrity rests on HTTPS and the GitHub account that publishes releases. Signing the installer would add a publisher check on top; until then, protect that account (2FA) and its release token.
 
 **Renderer isolation** (Electron security checklist)
 - `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`, `webSecurity: true` on every window, plus `app.enableSandbox()`.

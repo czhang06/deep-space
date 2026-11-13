@@ -54,7 +54,7 @@ function createState({ seed = Math.floor(Math.random() * 2 ** 31), now = Date.no
     streak: { category: "neutral", minutes: 0 },
     days: {},
     rules: [],
-    settings: { openAtLogin: true, playAllowanceMinutes: 90, milestoneNotifications: true },
+    settings: { openAtLogin: true, playAllowanceMinutes: 90, milestoneNotifications: true, autoUpdate: true },
     pausedUntil: null,
     events: [],
     // plan: [{ index, points, name, detail, announce? }] from the renderer

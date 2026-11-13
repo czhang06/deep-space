@@ -16,11 +16,20 @@
     "check": "tsc",
     "test": "node --test tests/classifier.test.cjs tests/sim.test.cjs tests/generator.test.ts tests/upgrades.test.ts tests/journey.test.ts",
     "icons": "node scripts/make-icons.mjs",
-    "dist": "npm run check && npm test && npm run build && electron-builder --win"
+    "dist": "npm run check && npm test && npm run build && electron-builder --win --publish never",
+    "release": "npm run check && npm test && npm run build && electron-builder --win --publish always"
   },
   "build": {
     "appId": "com.czhang.tinykingdom",
     "productName": "Deep Space",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "czhang06",
+        "repo": "deep-space",
+        "releaseType": "release"
+      }
+    ],
     "copyright": "Copyright (c) 2026 czhang06",
     "directories": {
       "output": "release",
@@ -82,5 +91,8 @@
     "typescript": "^6.0.3",
     "vite": "^8.3.8",
     "wait-on": "^9.0.5"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
   }
 }

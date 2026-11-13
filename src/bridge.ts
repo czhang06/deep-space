@@ -45,7 +45,8 @@ function previewApi(): KingdomApi {
     pausedUntil: null,
     tracking: "preview",
     rules: [{ id: "rule-1", targetType: "app", pattern: "discord", category: "neutral" }],
-    settings: { openAtLogin: true, playAllowanceMinutes: 90, milestoneNotifications: true },
+    settings: { openAtLogin: true, playAllowanceMinutes: 90, milestoneNotifications: true, autoUpdate: true },
+    app: { version: "preview", update: { state: "unavailable" } },
     milestones: [],
     events: [
       { text: "Finished a hull segment.", at: Date.now() - 600000 },
@@ -110,6 +111,9 @@ function previewApi(): KingdomApi {
           }))
       }),
     setMilestoneNotifications: (enabled) => publish({ settings: { ...snapshot.settings, milestoneNotifications: enabled } }),
+    checkForUpdates: () => Promise.resolve(snapshot),
+    installUpdate: () => Promise.resolve(),
+    setAutoUpdate: (enabled) => publish({ settings: { ...snapshot.settings, autoUpdate: enabled } }),
     clearHistory: () => publish({ today: { work: 0, play: 0, idle: 0, neutral: 0, playAllowance: snapshot.today.playAllowance, top: [] }, events: [] }),
     openMain: () => Promise.resolve(),
     hidePopup: () => Promise.resolve(),

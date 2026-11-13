@@ -211,6 +211,12 @@ class KingdomService extends EventEmitter {
     return this.getSnapshot();
   }
 
+  /** Facts about the app itself (version, update status) that the windows show. */
+  setAppInfo(info) {
+    this.appInfo = { ...this.appInfo, ...info };
+    this.emitSnapshot();
+  }
+
   updateSettings(patch) {
     this.state.settings = { ...this.state.settings, ...patch };
     this.save(true);
@@ -274,6 +280,7 @@ class KingdomService extends EventEmitter {
       rules: this.state.rules,
       settings: this.state.settings,
       milestones: this.state.milestones.reached,
+      app: this.appInfo ?? { version: "", update: { state: "unavailable" } },
       events: this.state.events.slice(0, 5)
     };
   }

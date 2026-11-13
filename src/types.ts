@@ -38,10 +38,20 @@ export interface Snapshot {
   pausedUntil: number | null;
   tracking: "live" | "starting" | "unsupported" | "preview";
   rules: Rule[];
-  settings: { openAtLogin: boolean; playAllowanceMinutes: number; milestoneNotifications: boolean };
+  settings: { openAtLogin: boolean; playAllowanceMinutes: number; milestoneNotifications: boolean; autoUpdate: boolean };
+  /** the app itself: its version and where an update check has got to */
+  app: { version: string; update: UpdateStatus };
   /** places on the journey already reached; at is null when reached before the daily records */
   milestones: Array<{ index: number; at: number | null; approx?: boolean }>;
   events: Array<{ text: string; at: number }>;
+}
+
+export interface UpdateStatus {
+  state: "idle" | "checking" | "downloading" | "ready" | "current" | "error" | "unavailable";
+  version?: string;
+  percent?: number;
+  message?: string;
+  checkedAt?: number;
 }
 
 export interface KingdomApi {
@@ -59,6 +69,9 @@ export interface KingdomApi {
   setMilestoneNotifications(enabled: boolean): Promise<Snapshot>;
   /** the main window is asked to show the logbook (from a milestone notification) */
   onOpenLogbook?(listener: () => void): () => void;
+  checkForUpdates(): Promise<Snapshot>;
+  installUpdate(): Promise<void>;
+  setAutoUpdate(enabled: boolean): Promise<Snapshot>;
   clearHistory(): Promise<Snapshot>;
   openMain(): Promise<void>;
   hidePopup(): Promise<void>;

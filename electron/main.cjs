@@ -15,6 +15,7 @@ const {
   shell
 } = require("electron");
 const { KingdomService } = require("./services/kingdom-service.cjs");
+const { createUpdater } = require("./services/updater.cjs");
 
 const APP_NAME = "Deep Space";
 const APP_ID = "com.czhang.tinykingdom";
@@ -97,6 +98,7 @@ function main() {
   let popupHiddenAt = 0;
   let quitting = false;
   let menuKey = "";
+  let updater;
 
   app.on("second-instance", () => showMain());
 
@@ -126,10 +128,18 @@ function main() {
     powerMonitor.on("suspend", () => kingdom.setLocked(true));
     powerMonitor.on("resume", () => kingdom.setLocked(false));
 
+    updater = createUpdater({
+      log,
+      isEnabled: () => kingdom.getSnapshot().settings.autoUpdate,
+      onStatus: (update) => kingdom.setAppInfo({ update })
+    });
+    kingdom.setAppInfo({ version: app.getVersion(), update: updater.status() });
+
     registerIpc();
     createTray();
     syncLoginItem(kingdom.getSnapshot().settings.openAtLogin);
     kingdom.start();
+    updater.start();
 
     if (!STARTED_HIDDEN) {
       showMain();
@@ -403,7 +413,8 @@ function main() {
     const label = snapshot.paused ? "paused" : snapshot.now.category;
     tray.setToolTip(snapshot.paused ? `${APP_NAME}: tracking paused` : `${APP_NAME}: ${label}`);
 
-    const key = `${snapshot.paused}|${snapshot.settings.openAtLogin}|${snapshot.mode}`;
+    const updateReady = snapshot.app?.update?.state === "ready";
+    const key = `${snapshot.paused}|${snapshot.settings.openAtLogin}|${snapshot.mode}|${updateReady}`;
     if (key === menuKey) {
       return;
     }
@@ -430,6 +441,11 @@ function main() {
           checked: snapshot.settings.openAtLogin,
           click: (item) => setOpenAtLogin(item.checked)
         },
+        ...(updateReady
+          ? [{ label: `Restart to update to ${snapshot.app.update.version}`, click: () => updater.installNow() }]
+          : app.isPackaged
+            ? [{ label: "Check for updates", click: () => updater.check() }]
+            : []),
         { type: "separator" },
         { label: "Quit Deep Space", click: () => app.quit() }
       ])
@@ -559,6 +575,17 @@ function main() {
         throw new Error("Invalid value");
       }
       return kingdom.updateSettings({ milestoneNotifications: enabled });
+    });
+    handle("kingdom:check-for-updates", () => {
+      updater.check();
+      return kingdom.getSnapshot();
+    });
+    handle("kingdom:install-update", () => updater.installNow());
+    handle("kingdom:set-auto-update", (enabled) => {
+      if (typeof enabled !== "boolean") {
+        throw new Error("Invalid value");
+      }
+      return kingdom.updateSettings({ autoUpdate: enabled });
     });
     handle("kingdom:clear-history", () => kingdom.clearHistory());
     handle("kingdom:open-main", () => showMain());

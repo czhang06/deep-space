@@ -23,6 +23,9 @@ contextBridge.exposeInMainWorld("kingdom", {
     ipcRenderer.on("kingdom:open-logbook", wrapped);
     return () => ipcRenderer.removeListener("kingdom:open-logbook", wrapped);
   },
+  checkForUpdates: () => ipcRenderer.invoke("kingdom:check-for-updates"),
+  installUpdate: () => ipcRenderer.invoke("kingdom:install-update"),
+  setAutoUpdate: (enabled) => ipcRenderer.invoke("kingdom:set-auto-update", enabled),
   clearHistory: () => ipcRenderer.invoke("kingdom:clear-history"),
   openMain: () => ipcRenderer.invoke("kingdom:open-main"),
   hidePopup: () => ipcRenderer.invoke("kingdom:hide-popup"),
