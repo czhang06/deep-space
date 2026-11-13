@@ -45,7 +45,22 @@ function previewApi(): KingdomApi {
     pausedUntil: null,
     tracking: "preview",
     rules: [{ id: "rule-1", targetType: "app", pattern: "discord", category: "neutral" }],
-    settings: { openAtLogin: true, playAllowanceMinutes: 90, milestoneNotifications: true, autoUpdate: true },
+    settings: { openAtLogin: true, playAllowanceMinutes: 90, milestoneNotifications: true, autoUpdate: true, weeklyRecap: true },
+    // Preview: two weeks of made-up days.
+    history: Array.from({ length: 14 }, (_, index) => {
+      const date = new Date();
+      date.setHours(12, 0, 0, 0);
+      date.setDate(date.getDate() - 13 + index);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      const weekend = date.getDay() === 0 || date.getDay() === 6;
+      return { date: key, work: weekend ? 25 + index * 3 : 95 + ((index * 37) % 120), play: 30 + ((index * 23) % 90), idle: 40, neutral: 30 };
+    }),
+    weekTop: [
+      { label: "Visual Studio Code", minutes: 612, category: "work" },
+      { label: "GitHub", minutes: 184, category: "work" },
+      { label: "YouTube", minutes: 230, category: "play" },
+      { label: "Spotify", minutes: 140, category: "neutral" }
+    ],
     app: { version: "preview", update: { state: "unavailable" } },
     milestones: [],
     events: [
@@ -114,6 +129,7 @@ function previewApi(): KingdomApi {
     checkForUpdates: () => Promise.resolve(snapshot),
     installUpdate: () => Promise.resolve(),
     setAutoUpdate: (enabled) => publish({ settings: { ...snapshot.settings, autoUpdate: enabled } }),
+    setWeeklyRecap: (enabled) => publish({ settings: { ...snapshot.settings, weeklyRecap: enabled } }),
     clearHistory: () => publish({ today: { work: 0, play: 0, idle: 0, neutral: 0, playAllowance: snapshot.today.playAllowance, top: [] }, events: [] }),
     openMain: () => Promise.resolve(),
     hidePopup: () => Promise.resolve(),

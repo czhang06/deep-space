@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { resolveStation, worldCenter, type PlacedPiece } from "./generator.ts";
-import { clusterTexture, galaxyTexture, journeyAt, nebulaTexture, planetTexture, ringTexture, type Planet } from "./journey.ts";
+import { clusterTexture, galaxyTexture, journeyAt, nebulaTexture, planetTexture, ringTexture, spikeTexture, starTexture, type Planet } from "./journey.ts";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { SHIP_SPACE, createMaterials, releaseMaterials, setReflections } from "./materials.ts";
 import { Alien, AssemblyFrame, CELL, MaterialContext, PieceModel, Scorch, baseY, deckBase, pieceSize, pieceSpan } from "./pieces.tsx";
@@ -240,23 +240,36 @@ function Sun({ size }: { size: number }) {
   );
 }
 
-/** A star being passed: a white-hot disc inside a wide coloured corona. */
+/**
+ * A star being passed: a wide coloured corona, the star's face (white-hot middle, darker rim,
+ * mottled surface) always turned to the camera, and faint diffraction spikes.
+ */
 function StarBody({ place, angle, distance }: { place: Planet; angle: number; distance: number }) {
   const radius = place.size * 22;
-  const corona = useMemo(
-    () =>
-      new THREE.SpriteMaterial({ map: glowTexture("sun"), color: place.colors[1], transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
-    [place]
-  );
+  const materials = useMemo(() => {
+    const glow = (opacity: number) =>
+      new THREE.SpriteMaterial({ map: glowTexture("sun"), color: place.colors[1], transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false });
+    return {
+      inner: glow(0.75),
+      outer: glow(0.45),
+      face: new THREE.SpriteMaterial({ map: starTexture(place), transparent: true, depthWrite: false, toneMapped: false }),
+      spikes: new THREE.SpriteMaterial({
+        map: spikeTexture(),
+        color: place.colors[1],
+        transparent: true,
+        opacity: 0.55,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      })
+    };
+  }, [place]);
   const position: [number, number, number] = [Math.cos(angle) * distance, -distance * 0.2, Math.sin(angle) * distance];
   return (
     <group position={position}>
-      <mesh>
-        <sphereGeometry args={[radius, 32, 24]} />
-        <meshBasicMaterial color={place.colors[0]} toneMapped={false} />
-      </mesh>
-      <sprite material={corona} scale={[radius * 7, radius * 7, 1]} />
-      <sprite material={corona} scale={[radius * 16, radius * 16, 1]} />
+      <sprite material={materials.outer} scale={[radius * 16, radius * 16, 1]} renderOrder={-3} />
+      <sprite material={materials.inner} scale={[radius * 6, radius * 6, 1]} renderOrder={-2} />
+      <sprite material={materials.face} scale={[radius * 2, radius * 2, 1]} renderOrder={-1} />
+      <sprite material={materials.spikes} scale={[radius * 14, radius * 14, 1]} renderOrder={0} />
     </group>
   );
 }

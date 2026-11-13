@@ -417,7 +417,8 @@ export function galaxyTexture(place: Planet): THREE.Texture {
     ctx.globalCompositeOperation = "lighter";
     ctx.save();
     ctx.translate(256, 256);
-    ctx.rotate(rng() * Math.PI);
+    const spin = rng() * Math.PI;
+    ctx.rotate(spin);
     ctx.scale(1, squash);
     for (let index = 0; index < 2600; index += 1) {
       const arm = index % arms;
@@ -441,11 +442,32 @@ export function galaxyTexture(place: Planet): THREE.Texture {
     dab(ctx, 0, 0, 95, core, 0.85);
     dab(ctx, 0, 0, 26, "#ffffff", 0.9);
     ctx.restore();
-    // A dark dust lane across steeply tilted galaxies.
-    if (squash < 0.4) {
+    // Seen nearly edge-on, the disc is a thin line, so give it what real ones show: a bright
+    // central bulge rising above the disc and a dark dust lane along it (both in the disc's frame).
+    if (squash < 0.5) {
+      ctx.save();
+      ctx.translate(256, 256);
+      ctx.rotate(spin);
+      ctx.globalCompositeOperation = "lighter";
+      ctx.save();
+      ctx.scale(1, 0.62);
+      dab(ctx, 0, 0, 120, core, 0.55);
+      dab(ctx, 0, 0, 70, core, 0.75);
+      ctx.restore();
+      dab(ctx, 0, 0, 34, "#ffffff", 0.85);
+      // A haze of stars thickening the disc.
+      for (let index = 0; index < 160; index += 1) {
+        const x = (rng() - 0.5) * 440 * Math.sqrt(rng());
+        dab(ctx, x, (rng() - 0.5) * 26, 10 + rng() * 14, armColor, 0.08);
+      }
       ctx.globalCompositeOperation = "destination-out";
-      ctx.fillStyle = "rgba(0,0,0,0.45)";
-      ctx.fillRect(0, 252, 512, 7);
+      const lane = ctx.createLinearGradient(0, -6, 0, 6);
+      lane.addColorStop(0, "rgba(0,0,0,0)");
+      lane.addColorStop(0.5, "rgba(0,0,0,0.6)");
+      lane.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = lane;
+      ctx.fillRect(-235, -6, 470, 12);
+      ctx.restore();
     }
   });
 }
@@ -463,6 +485,67 @@ export function clusterTexture(place: Planet): THREE.Texture {
       const size = rng() < 0.12 ? 10 + rng() * 10 : 2 + rng() * 4;
       dab(ctx, x, y, size * 2.5, place.colors[1], 0.35);
       dab(ctx, x, y, size, place.colors[0], 0.95);
+    }
+  });
+}
+
+/**
+ * A star's face: hot and white in the middle, cooler and darker toward the rim (limb
+ * darkening), with a mottled surface of convection cells.
+ */
+export function starTexture(place: Planet): THREE.Texture {
+  return canvasTexture(`star:${place.name}`, 256, (ctx, rng) => {
+    const [core, corona] = place.colors;
+    const disc = ctx.createRadialGradient(128, 128, 0, 128, 128, 126);
+    disc.addColorStop(0, "#ffffff");
+    disc.addColorStop(0.45, core);
+    disc.addColorStop(0.85, corona);
+    disc.addColorStop(0.97, new THREE.Color(corona).multiplyScalar(0.55).getStyle());
+    disc.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = disc;
+    ctx.beginPath();
+    ctx.arc(128, 128, 126, 0, Math.PI * 2);
+    ctx.fill();
+    // Granulation: small bright and dark cells across the face.
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(128, 128, 122, 0, Math.PI * 2);
+    ctx.clip();
+    for (let index = 0; index < 700; index += 1) {
+      const angle = rng() * Math.PI * 2;
+      const radius = Math.sqrt(rng()) * 120;
+      dab(ctx, 128 + Math.cos(angle) * radius, 128 + Math.sin(angle) * radius, 3 + rng() * 5, rng() < 0.5 ? "#ffffff" : corona, 0.12);
+    }
+    // A few darker spots.
+    for (let index = 0; index < 2; index += 1) {
+      const angle = rng() * Math.PI * 2;
+      const radius = 30 + rng() * 70;
+      dab(ctx, 128 + Math.cos(angle) * radius, 128 + Math.sin(angle) * radius, 7 + rng() * 6, "#5a3418", 0.18);
+    }
+    ctx.restore();
+  });
+}
+
+/** Thin diffraction spikes for a bright star, tinted by the material. */
+export function spikeTexture(): THREE.Texture {
+  return canvasTexture("spikes", 512, (ctx) => {
+    ctx.globalCompositeOperation = "lighter";
+    for (const [angle, length] of [
+      [0, 1],
+      [Math.PI / 2, 1],
+      [Math.PI / 4, 0.45],
+      [-Math.PI / 4, 0.45]
+    ]) {
+      ctx.save();
+      ctx.translate(256, 256);
+      ctx.rotate(angle);
+      const spike = ctx.createLinearGradient(-256 * length, 0, 256 * length, 0);
+      spike.addColorStop(0, "rgba(255,255,255,0)");
+      spike.addColorStop(0.5, "rgba(255,255,255,0.9)");
+      spike.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = spike;
+      ctx.fillRect(-256 * length, -1.5, 512 * length, 3);
+      ctx.restore();
     }
   });
 }

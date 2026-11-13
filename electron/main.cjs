@@ -114,6 +114,7 @@ function main() {
       getIdleSeconds: () => powerMonitor.getSystemIdleTime()
     });
     kingdom.on("milestone", announceMilestone);
+    kingdom.on("recap", announceRecap);
     kingdom.on("snapshot", (snapshot) => {
       for (const window of [mainWindow, popup]) {
         if (window && !window.isDestroyed()) {
@@ -281,6 +282,34 @@ function main() {
     notification.on("click", () => {
       showMain();
       mainWindow?.webContents.send("kingdom:open-logbook");
+    });
+    notification.show();
+  }
+
+  /** Monday's notification summing up the week before. */
+  function announceRecap({ week, previous }) {
+    if (!Notification.isSupported()) {
+      return;
+    }
+    const hours = (minutes) => {
+      const rounded = Math.round(minutes);
+      const h = Math.floor(rounded / 60);
+      return h ? `${h}h ${rounded % 60}m` : `${rounded}m`;
+    };
+    const change = previous.work >= 30 ? Math.round(((week.work - previous.work) / previous.work) * 100) : null;
+    const parts = [`${hours(week.work)} of focus${change === null ? "" : ` (${change >= 0 ? "+" : ""}${change}% on the week before)`}`];
+    parts.push(`${week.focusedDays} focused day${week.focusedDays === 1 ? "" : "s"}`);
+    if (week.places.length) {
+      parts.push(`reached ${week.places.length === 1 ? week.places[0] : `${week.places.length} new places`}`);
+    }
+    const notification = new Notification({
+      title: "Your week in Deep Space",
+      body: `${parts.join(", ")}.`,
+      icon: path.join(ASSETS, "icon.png")
+    });
+    notification.on("click", () => {
+      showMain();
+      mainWindow?.webContents.send("kingdom:open-recap");
     });
     notification.show();
   }
@@ -586,6 +615,12 @@ function main() {
         throw new Error("Invalid value");
       }
       return kingdom.updateSettings({ autoUpdate: enabled });
+    });
+    handle("kingdom:set-weekly-recap", (enabled) => {
+      if (typeof enabled !== "boolean") {
+        throw new Error("Invalid value");
+      }
+      return kingdom.updateSettings({ weeklyRecap: enabled });
     });
     handle("kingdom:clear-history", () => kingdom.clearHistory());
     handle("kingdom:open-main", () => showMain());

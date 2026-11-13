@@ -54,7 +54,9 @@ function createState({ seed = Math.floor(Math.random() * 2 ** 31), now = Date.no
     streak: { category: "neutral", minutes: 0 },
     days: {},
     rules: [],
-    settings: { openAtLogin: true, playAllowanceMinutes: 90, milestoneNotifications: true, autoUpdate: true },
+    settings: { openAtLogin: true, playAllowanceMinutes: 90, milestoneNotifications: true, autoUpdate: true, weeklyRecap: true },
+    // the Monday (day key) of the last week a recap was sent for
+    lastRecapWeek: null,
     pausedUntil: null,
     events: [],
     // plan: [{ index, points, name, detail, announce? }] from the renderer
@@ -322,6 +324,100 @@ function checkMilestones(state, now = Date.now()) {
   return arrived;
 }
 
+// ---- weekly recap ------------------------------------------------------------------------
+
+const RECAP_HOUR = 9;
+const FOCUSED_DAY_MINUTES = 30;
+
+/** Midnight at the start of the week (Monday) containing `time`, local time. */
+function weekStart(time) {
+  const date = new Date(time);
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  return date.getTime();
+}
+
+function addDays(time, days) {
+  const date = new Date(time);
+  date.setDate(date.getDate() + days);
+  return date.getTime();
+}
+
+/** Totals for the seven days starting at `start` (a Monday midnight). */
+function summarizeWeek(state, start) {
+  const end = addDays(start, 7);
+  const summary = { start: dayKey(start), work: 0, play: 0, focusedDays: 0, bestDay: null, bestWork: 0, places: [] };
+  for (let offset = 0; offset < 7; offset += 1) {
+    const key = dayKey(addDays(start, offset));
+    const day = state.days[key];
+    if (!day) {
+      continue;
+    }
+    summary.work += day.work ?? 0;
+    summary.play += day.play ?? 0;
+    if ((day.work ?? 0) >= FOCUSED_DAY_MINUTES) {
+      summary.focusedDays += 1;
+    }
+    if ((day.work ?? 0) > summary.bestWork) {
+      summary.bestWork = day.work;
+      summary.bestDay = key;
+    }
+  }
+  const names = new Map(state.milestones.plan.map((entry) => [entry.index, entry.name]));
+  summary.places = state.milestones.reached
+    .filter((entry) => entry.at !== null && entry.at >= start && entry.at < end && names.has(entry.index))
+    .map((entry) => names.get(entry.index));
+  return summary;
+}
+
+/**
+ * Once a week, from Monday 9am, a recap of the week before (and the one before that, for
+ * comparison). Returns null when it isn't due, is turned off, or there's nothing to report.
+ */
+function dueWeeklyRecap(state, now = Date.now()) {
+  const thisWeek = weekStart(now);
+  const lastWeek = addDays(thisWeek, -7);
+  const key = dayKey(lastWeek);
+  if (!state.settings.weeklyRecap || state.lastRecapWeek === key || new Date(now).getHours() < RECAP_HOUR && now - thisWeek < 86400000) {
+    return null;
+  }
+  state.lastRecapWeek = key;
+  const week = summarizeWeek(state, lastWeek);
+  if (week.work < 1 && week.play < 1) {
+    return null; // the app wasn't running that week
+  }
+  return { week, previous: summarizeWeek(state, addDays(lastWeek, -7)) };
+}
+
+/** The last `count` days, oldest first, for charts (days with no record count as zero). */
+function recentDays(state, now = Date.now(), count = 14) {
+  const today = new Date(now);
+  today.setHours(12, 0, 0, 0);
+  return Array.from({ length: count }, (_, index) => {
+    const key = dayKey(addDays(today.getTime(), index - count + 1));
+    const day = state.days[key] ?? emptyDay();
+    return { date: key, work: Math.round(day.work), play: Math.round(day.play), idle: Math.round(day.idle), neutral: Math.round(day.neutral) };
+  });
+}
+
+/** Top apps and sites over the last seven days. */
+function weekTop(state, now = Date.now(), limit = 5) {
+  const totals = new Map();
+  for (const day of recentDays(state, now, 7)) {
+    for (const [label, entry] of Object.entries(state.days[day.date]?.labels ?? {})) {
+      const current = totals.get(label) ?? { label, minutes: 0, category: entry.category };
+      current.minutes += entry.minutes;
+      current.category = entry.category;
+      totals.set(label, current);
+    }
+  }
+  return [...totals.values()]
+    .map((entry) => ({ ...entry, minutes: Math.round(entry.minutes) }))
+    .filter((entry) => entry.minutes >= 1)
+    .sort((a, b) => b.minutes - a.minutes)
+    .slice(0, limit);
+}
+
 function damageCount(state) {
   return Math.max(0, Math.ceil(state.repairDebt / DAMAGE_COST - 1e-9));
 }
@@ -331,6 +427,11 @@ function today(state, now = Date.now()) {
 }
 
 module.exports = {
+  dueWeeklyRecap,
+  recentDays,
+  summarizeWeek,
+  weekStart,
+  weekTop,
   checkMilestones,
   estimateReachedAt,
   setMilestonePlan,

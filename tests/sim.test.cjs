@@ -147,3 +147,38 @@ test("reaching a milestone records it once, with an event, and reports it for a 
   assert.match(state.events[0].text, /left the solar system/);
   assert.equal(sim.checkMilestones(state, now + 2000).length, 0);
 });
+
+test("the weekly recap comes once, from Monday 9am, about the week before", () => {
+  const day = (key, work, play = 0) => ({ work, play, idle: 0, neutral: 0, labels: {}, aliensArrived: 0, key });
+  const state = sim.createState({ seed: 1 });
+  // Week of Mon 2 Nov 2026 (the one before), and the week of Mon 9 Nov (the one reported).
+  state.days = {
+    "2026-11-03": day("2026-11-03", 120),
+    "2026-11-10": day("2026-11-10", 90),
+    "2026-11-12": day("2026-11-12", 150, 30),
+    "2026-11-13": day("2026-11-13", 20)
+  };
+  state.milestones.plan = [{ index: 11, points: 1, name: "Sirius", detail: "x" }];
+  state.milestones.reached = [{ index: 11, at: new Date("2026-11-12T15:00:00").getTime() }];
+
+  assert.equal(sim.dueWeeklyRecap(state, new Date("2026-11-16T08:30:00").getTime()), null); // Monday, too early
+  const recap = sim.dueWeeklyRecap(state, new Date("2026-11-16T09:30:00").getTime());
+  assert.equal(recap.week.start, "2026-11-09");
+  assert.equal(recap.week.work, 260);
+  assert.equal(recap.week.focusedDays, 2);
+  assert.equal(recap.week.bestDay, "2026-11-12");
+  assert.deepEqual(recap.week.places, ["Sirius"]);
+  assert.equal(recap.previous.work, 120);
+  assert.equal(sim.dueWeeklyRecap(state, new Date("2026-11-17T10:00:00").getTime()), null); // only once
+
+  state.settings.weeklyRecap = false;
+  state.lastRecapWeek = null;
+  assert.equal(sim.dueWeeklyRecap(state, new Date("2026-11-17T10:00:00").getTime()), null);
+});
+
+test("recent days fill gaps with zeros, oldest first", () => {
+  const state = sim.createState({ seed: 1 });
+  state.days = { "2026-11-12": { work: 61.6, play: 0, idle: 0, neutral: 0, labels: {}, aliensArrived: 0 } };
+  const days = sim.recentDays(state, new Date("2026-11-13T10:00:00").getTime(), 3);
+  assert.deepEqual(days.map((entry) => [entry.date, entry.work]), [["2026-11-11", 0], ["2026-11-12", 62], ["2026-11-13", 0]]);
+});

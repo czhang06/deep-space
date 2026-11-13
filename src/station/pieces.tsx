@@ -953,7 +953,7 @@ function Hangar({ variant }: { variant: number }) {
  * window bands, rooftop spikes and forward rod bundles, and a skybridge between the two
  * tallest. Each extra level makes the whole block taller.
  */
-function District({ levels, variant }: { levels: number; variant: number }) {
+function District({ levels, variant, tier }: { levels: number; variant: number; tier: number }) {
   const buildings = useMemo(() => {
     const list: Array<{ x: number; z: number; w: number; d: number; h: number; roof: number; shade: boolean }> = [];
     for (let column = 0; column < 3; column += 1) {
@@ -1002,19 +1002,47 @@ function District({ levels, variant }: { levels: number; variant: number }) {
           {b.roof === 2 ? <RodClump p={[0, b.h + 0.16, 0]} length={0.8} count={9} pitch={0.045} radius={0.014} seed={variant + index} axis="y" /> : null}
         </group>
       ))}
-      {bridge ? (
-        <P
-          g={geo.box(Math.max(0.1, Math.abs(bridge[0].x - bridge[1].x)), 0.08, Math.max(0.1, Math.abs(bridge[0].z - bridge[1].z)) + 0.1)}
-          m="panel"
-          p={[(bridge[0].x + bridge[1].x) / 2, 0.14 + Math.min(bridge[0].h, bridge[1].h) * 0.7, (bridge[0].z + bridge[1].z) / 2]}
-        />
+      {bridge ? <Skybridge a={bridge[0]} b={bridge[1]} at={0.7} /> : null}
+      {/* Upgrades: 2 plated ledges, 3 red bands and a beacon, 4 more skybridges and an antenna
+          sheaf on the tallest tower, 5 glowing light strips up the corners. */}
+      {tier >= 2
+        ? buildings.map((b, index) => <P key={`ledge${index}`} g={geo.chamferBox(b.w + 0.07, 0.05, b.d + 0.07, 0.03)} m="plate" p={[b.x, 0.14 + b.h * 0.55, b.z]} />)
+        : null}
+      {tier >= 3
+        ? buildings.map((b, index) => <P key={`band${index}`} g={geo.box(b.w + 0.02, 0.04, b.d + 0.02)} m="accent" p={[b.x, 0.14 + b.h * 0.82, b.z]} />)
+        : null}
+      {tier >= 3 && tallest[0] ? <Blinker p={[tallest[0].x, 0.14 + tallest[0].h + 0.32, tallest[0].z]} phase={variant * 0.21} /> : null}
+      {tier >= 4 && tallest.length > 2 ? (
+        <>
+          <Skybridge a={tallest[1]} b={tallest[2]} at={0.45} />
+          <Skybridge a={tallest[0]} b={tallest[2]} at={0.3} />
+          <RodClump p={[tallest[0].x, 0.14 + tallest[0].h + 0.16, tallest[0].z]} length={1.1} count={7} pitch={0.04} radius={0.012} seed={variant + 50} axis="y" />
+        </>
       ) : null}
+      {tier >= 5
+        ? buildings.flatMap((b, index) =>
+            [-1, 1].map((side) => (
+              <P key={`glow${index}${side}`} g={geo.box(0.025, b.h * 0.85, 0.025)} m="energy" p={[b.x + side * (b.w / 2), 0.14 + b.h * 0.47, b.z + b.d / 2 + 0.012]} />
+            ))
+          )
+        : null}
     </group>
   );
 }
 
+/** A covered walkway between two buildings of a city block, at a fraction of the shorter one's height. */
+function Skybridge({ a, b, at }: { a: { x: number; z: number; h: number }; b: { x: number; z: number; h: number }; at: number }) {
+  return (
+    <P
+      g={geo.box(Math.max(0.1, Math.abs(a.x - b.x)), 0.08, Math.max(0.1, Math.abs(a.z - b.z)) + 0.1)}
+      m="panel"
+      p={[(a.x + b.x) / 2, 0.14 + Math.min(a.h, b.h) * at, (a.z + b.z) / 2]}
+    />
+  );
+}
+
 /** A sky hull: a small ship hull raised on two pylons, with a deckhouse and a forward needle bank. */
-function Pod({ variant }: { variant: number }) {
+function Pod({ variant, tier }: { variant: number; tier: number }) {
   const height = 1.5 + (variant % 3) * 0.75;
   const top = DECK_TOP + height;
   return (
@@ -1044,6 +1072,42 @@ function Pod({ variant }: { variant: number }) {
       <P g={geo.cyl(0.16, 0.16, 0.03, 8)} m="engine" p={[-0.87, top, 0]} r={[Math.PI / 8, 0, Math.PI / 2]} />
       <RodClump p={[0.0, top + 0.46, 0]} length={1.9} count={11} seed={variant} />
       <Blinker p={[-0.25, top + 0.62, 0]} phase={variant * 0.17} />
+      {/* Upgrades: 2 side armour, 3 red trim and a bow light, 4 extra bracing and a dorsal gun,
+          5 glowing keel lines and a bigger drive. */}
+      {tier >= 2
+        ? [-1, 1].map((side) => <P key={`armour${side}`} g={geo.chamferBox(1.15, 0.2, 0.05, 0.03)} m="plate" p={[-0.05, top - 0.02, side * 0.38]} />)
+        : null}
+      {tier >= 3 ? (
+        <>
+          <P g={geo.box(0.62, 0.05, 0.44)} m="accent" p={[-0.25, top + 0.5, 0]} />
+          <Blinker p={[1.2, top + 0.05, 0]} phase={variant * 0.17 + 0.8} />
+        </>
+      ) : null}
+      {tier >= 4 ? (
+        <>
+          <RodSet
+            rods={[
+              [[-0.45, DECK_TOP + 0.1, -0.1], [0.35, top - 0.2, -0.1]],
+              [[0.35, DECK_TOP + 0.1, 0.1], [-0.45, top - 0.2, 0.1]],
+              [[-0.45, DECK_TOP + height * 0.5, 0], [0.35, DECK_TOP + height * 0.5, 0]]
+            ]}
+            radius={0.018}
+            m="truss"
+          />
+          <group position={[0.35, top + 0.33, 0]}>
+            <P g={geo.cyl(0.13, 0.15, 0.08, 8)} m="gunmetal" />
+            <P g={geo.cyl(0.025, 0.025, 0.45, 6)} m="gunmetal" p={[0.24, 0.04, 0]} r={[0, 0, Math.PI / 2]} />
+          </group>
+        </>
+      ) : null}
+      {tier >= 5 ? (
+        <>
+          {[-1, 1].map((side) => (
+            <P key={`energy${side}`} g={geo.box(1.3, 0.025, 0.025)} m="energy" p={[-0.05, top - 0.2, side * 0.33]} />
+          ))}
+          <P g={geo.cyl(0.24, 0.24, 0.03, 8)} m="engine" p={[-0.89, top, 0]} r={[Math.PI / 8, 0, Math.PI / 2]} />
+        </>
+      ) : null}
     </group>
   );
 }
@@ -1052,7 +1116,7 @@ function Pod({ variant }: { variant: number }) {
  * A keel spire: an inverted stepped tower hanging under the hull or an escort, lit by window
  * bands, ending in a downward spike, with a forward rod bundle along its lowest deck.
  */
-function Keel({ variant, top }: { variant: number; top: number }) {
+function Keel({ variant, top, tier }: { variant: number; top: number; tier: number }) {
   const decks = 2 + (variant % 3);
   const parts: ReactNode[] = [];
   let y = top;
@@ -1074,6 +1138,10 @@ function Keel({ variant, top }: { variant: number; top: number }) {
             gapEvery={3}
           />
         ))}
+        {/* Upgrades: 2 armour bands, 3 red rings, 5 glowing rims. */}
+        {tier >= 2 ? <P g={geo.chamferBox(w * 0.7, 0.09, d + 0.06, 0.04)} m="plate" p={[0, 0.07, 0]} /> : null}
+        {tier >= 3 ? <P g={geo.box(w + 0.03, 0.045, d + 0.03)} m="accent" p={[0, h / 2 - 0.05, 0]} /> : null}
+        {tier >= 5 ? <P g={geo.box(w + 0.05, 0.025, d + 0.05)} m="energy" p={[0, -h / 2 + 0.03, 0]} /> : null}
       </group>
     );
     y -= h;
@@ -1085,6 +1153,16 @@ function Keel({ variant, top }: { variant: number; top: number }) {
       <P g={geo.cone(0.18, 1.3, 4)} m="hull" p={[decks * 0.1, y - 0.62, 0]} r={[Math.PI, 0, 0]} />
       <RodClump p={[0, lowest, 0]} length={1.8 + (variant % 2) * 0.4} count={10} seed={variant} />
       <Blinker p={[decks * 0.1, y - 1.3, 0]} phase={variant * 0.29} />
+      {/* 4: a second sheaf and ribbed fins; 5: a glowing tip. */}
+      {tier >= 4 ? (
+        <>
+          <RodClump p={[-0.2, top - 0.3, 0]} length={1.4} count={8} seed={variant + 7} />
+          {[-1, 1].map((side) => (
+            <P key={side} g={geo.prism([[-0.5, 0], [0.4, 0], [-0.3, side * 0.35]], 0.05, 0.01)} m="gunmetal" p={[decks * 0.05, y + 0.1, side * 0.3]} r={[Math.PI / 2, 0, 0]} />
+          ))}
+        </>
+      ) : null}
+      {tier >= 5 ? <P g={geo.cone(0.07, 0.35, 4)} m="energy" p={[decks * 0.1, y - 1.2, 0]} r={[Math.PI, 0, 0]} /> : null}
     </group>
   );
 }
@@ -1159,6 +1237,9 @@ const DRESS: Record<PieceKind, (levels: number) => Dims> = {
   keel: () => ({ w: 1.5, d: 1.0, bottom: KEEL - 0.4, top: KEEL - 0.05, small: true })
 };
 
+/** Parts that model their own upgrade looks instead of the generic dressing. */
+const OWN_TIERS = new Set<PieceKind>(["district", "pod", "keel"]);
+
 export function PieceModel({
   kind,
   levels,
@@ -1219,14 +1300,14 @@ export function PieceModel({
       model = <Hangar variant={variant} />;
       break;
     case "district":
-      model = <District levels={levels} variant={variant} />;
+      model = <District levels={levels} variant={variant} tier={tier} />;
       break;
     case "pod":
-      model = <Pod variant={variant} />;
+      model = <Pod variant={variant} tier={tier} />;
       break;
     case "keel":
       // Under an escort it hangs from the escort's belly; under the spine, from the keel.
-      model = <Keel variant={variant} top={wingTier > 0 ? -0.36 : KEEL + 0.05} />;
+      model = <Keel variant={variant} top={wingTier > 0 ? -0.36 : KEEL + 0.05} tier={tier} />;
       break;
     default:
       model = <Hull variant={variant} />;
@@ -1234,7 +1315,7 @@ export function PieceModel({
   const dressed = (
     <group>
       {model}
-      <TierDress tier={tier} dims={DRESS[kind](levels)} seed={variant} />
+      {OWN_TIERS.has(kind) ? null : <TierDress tier={tier} dims={DRESS[kind](levels)} seed={variant} />}
     </group>
   );
   if (wingTier === 0) {

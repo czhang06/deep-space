@@ -26,6 +26,12 @@ contextBridge.exposeInMainWorld("kingdom", {
   checkForUpdates: () => ipcRenderer.invoke("kingdom:check-for-updates"),
   installUpdate: () => ipcRenderer.invoke("kingdom:install-update"),
   setAutoUpdate: (enabled) => ipcRenderer.invoke("kingdom:set-auto-update", enabled),
+  setWeeklyRecap: (enabled) => ipcRenderer.invoke("kingdom:set-weekly-recap", enabled),
+  onOpenRecap: (listener) => {
+    const wrapped = () => listener();
+    ipcRenderer.on("kingdom:open-recap", wrapped);
+    return () => ipcRenderer.removeListener("kingdom:open-recap", wrapped);
+  },
   clearHistory: () => ipcRenderer.invoke("kingdom:clear-history"),
   openMain: () => ipcRenderer.invoke("kingdom:open-main"),
   hidePopup: () => ipcRenderer.invoke("kingdom:hide-popup"),

@@ -38,7 +38,11 @@ export interface Snapshot {
   pausedUntil: number | null;
   tracking: "live" | "starting" | "unsupported" | "preview";
   rules: Rule[];
-  settings: { openAtLogin: boolean; playAllowanceMinutes: number; milestoneNotifications: boolean; autoUpdate: boolean };
+  settings: { openAtLogin: boolean; playAllowanceMinutes: number; milestoneNotifications: boolean; autoUpdate: boolean; weeklyRecap: boolean };
+  /** the last 14 days, oldest first, in minutes */
+  history: Array<{ date: string; work: number; play: number; idle: number; neutral: number }>;
+  /** top apps and sites over the last 7 days */
+  weekTop: Array<{ label: string; minutes: number; category: Category }>;
   /** the app itself: its version and where an update check has got to */
   app: { version: string; update: UpdateStatus };
   /** places on the journey already reached; at is null when reached before the daily records */
@@ -72,6 +76,9 @@ export interface KingdomApi {
   checkForUpdates(): Promise<Snapshot>;
   installUpdate(): Promise<void>;
   setAutoUpdate(enabled: boolean): Promise<Snapshot>;
+  setWeeklyRecap(enabled: boolean): Promise<Snapshot>;
+  /** the main window is asked to show the weekly recap (from its notification) */
+  onOpenRecap?(listener: () => void): () => void;
   clearHistory(): Promise<Snapshot>;
   openMain(): Promise<void>;
   hidePopup(): Promise<void>;

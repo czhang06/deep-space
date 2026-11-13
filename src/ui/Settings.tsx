@@ -136,16 +136,20 @@ export function Settings({ snapshot, onClose }: { snapshot: Snapshot; onClose: (
         </section>
 
         <section className="sheet__section">
-          <h3>Milestones</h3>
+          <h3>Notifications</h3>
           <label className="toggle">
             <input
               type="checkbox"
               checked={snapshot.settings.milestoneNotifications}
               onChange={(event) => void api.setMilestoneNotifications(event.target.checked)}
             />
-            <span>Notify me when the ship reaches a new place</span>
+            <span>When the ship reaches a new place</span>
           </label>
-          <p className="muted">Every arrival is also written in the logbook.</p>
+          <label className="toggle">
+            <input type="checkbox" checked={snapshot.settings.weeklyRecap} onChange={(event) => void api.setWeeklyRecap(event.target.checked)} />
+            <span>A recap of your week, on Monday mornings</span>
+          </label>
+          <p className="muted">Arrivals are always written in the logbook, and "This week" is always there to look at.</p>
         </section>
 
         <section className="sheet__section">

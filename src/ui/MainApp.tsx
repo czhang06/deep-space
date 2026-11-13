@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { api, isPreview, useSnapshot } from "../bridge.ts";
 import type { Snapshot } from "../types.ts";
 import { Logbook } from "./Logbook.tsx";
+import { Recap } from "./Recap.tsx";
 import { BuildStatus, LatestEvent, NextStop, NowCard, StationChips, TodayBar, useMilestonePlan } from "./parts.tsx";
 import { ModulePanel } from "./ModulePanel.tsx";
 import { Settings } from "./Settings.tsx";
@@ -21,10 +22,13 @@ function Main({ snapshot }: { snapshot: Snapshot }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Preview knob (?logbook) opens the logbook straight away.
   const [logbookOpen, setLogbookOpen] = useState(() => isPreview && new URLSearchParams(window.location.search).has("logbook"));
+  // Preview knob (?recap) opens the weekly recap straight away.
+  const [recapOpen, setRecapOpen] = useState(() => isPreview && new URLSearchParams(window.location.search).has("recap"));
   const [selectedId, setSelectedId] = useState<number | null>(null);
   useMilestonePlan(snapshot);
-  // A milestone notification was clicked.
+  // A milestone or weekly recap notification was clicked.
   useEffect(() => api.onOpenLogbook?.(() => setLogbookOpen(true)), []);
+  useEffect(() => api.onOpenRecap?.(() => setRecapOpen(true)), []);
   // Preview knob (?bare): just the ship, no cards, for concept screenshots.
   const bare = isPreview && new URLSearchParams(window.location.search).has("bare");
   return (
@@ -54,6 +58,9 @@ function Main({ snapshot }: { snapshot: Snapshot }) {
           <StationChips snapshot={snapshot} />
         </div>
         <div className="main__actions">
+          <button type="button" className="button button--glass" onClick={() => setRecapOpen(true)}>
+            This week
+          </button>
           <button type="button" className="button button--glass" onClick={() => setLogbookOpen(true)}>
             Logbook
           </button>
@@ -81,6 +88,7 @@ function Main({ snapshot }: { snapshot: Snapshot }) {
       {isPreview ? <p className="preview-note">Browser preview with sample data</p> : null}
       {settingsOpen ? <Settings snapshot={snapshot} onClose={() => setSettingsOpen(false)} /> : null}
       {logbookOpen ? <Logbook snapshot={snapshot} onClose={() => setLogbookOpen(false)} /> : null}
+      {recapOpen ? <Recap snapshot={snapshot} onClose={() => setRecapOpen(false)} /> : null}
     </main>
   );
 }

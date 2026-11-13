@@ -102,7 +102,12 @@ class KingdomService extends EventEmitter {
       this.emit("milestone", entry);
     }
 
-    this.save(arrived.length > 0);
+    const recap = sim.dueWeeklyRecap(this.state, now);
+    if (recap) {
+      this.emit("recap", recap);
+    }
+
+    this.save(arrived.length > 0 || recap !== null);
     this.emitSnapshot();
   }
 
@@ -280,6 +285,8 @@ class KingdomService extends EventEmitter {
       rules: this.state.rules,
       settings: this.state.settings,
       milestones: this.state.milestones.reached,
+      history: sim.recentDays(this.state, now, 14),
+      weekTop: sim.weekTop(this.state, now),
       app: this.appInfo ?? { version: "", update: { state: "unavailable" } },
       events: this.state.events.slice(0, 5)
     };
