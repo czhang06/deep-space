@@ -79,6 +79,20 @@ test("upgrade mode sends work to upgrades and logs where building stood", () => 
   assert.throws(() => sim.setMode(state, "demolish"));
 });
 
+test("picking a module switches to upgrade mode and records the pick once", () => {
+  const state = sim.createState({ seed: 1 });
+  run(state, "work", 20);
+  sim.setUpgradeFocus(state, 3, "hab node", NOON);
+  assert.equal(state.mode, "upgrade");
+  assert.deepEqual(state.upgradeLog, [
+    { buildPoints: 20, upgradeFrom: 0 },
+    { type: "focus", pieceId: 3, at: 0 }
+  ]);
+  sim.setUpgradeFocus(state, 3, "hab node", NOON); // same pick again: no new entry
+  assert.equal(state.upgradeLog.length, 2);
+  assert.throws(() => sim.setUpgradeFocus(state, -1, "x", NOON));
+});
+
 test("pauses expire", () => {
   const state = sim.createState({ seed: 1 });
   state.pausedUntil = NOON + 60000;

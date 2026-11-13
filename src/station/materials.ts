@@ -1,24 +1,25 @@
 import * as THREE from "three";
 
-// One palette for the whole ship: light-grey hull plates over darker structure, a single
-// red-orange warship accent, gunmetal trim, cool white windows, cyan engines and energy lines,
-// and an acid-green alien glow.
+// One palette for the whole ship, gothic battleship style: dark iron hull and towers, a pale
+// armoured prow and armour plates, brass trim, deep red banners, hundreds of warm lit windows,
+// cyan engine glow, and an acid-green alien glow.
 export const PALETTE = {
-  hull: "#c7ccd4",
-  hullShade: "#9ba2ae",
-  panel: "#7c8492",
-  plate: "#adb3bd",
-  graphite: "#3a3f48",
-  truss: "#5c636f",
-  gunmetal: "#596170",
-  accent: "#d9482b",
+  hull: "#7b818c",
+  hullShade: "#5f656f",
+  panel: "#454a52",
+  plate: "#cfcabd",
+  bone: "#d9d4c6",
+  graphite: "#22252b",
+  truss: "#5a606a",
+  gunmetal: "#4b5059",
+  accent: "#9a2c22",
   accentBlue: "#3d6fd1",
-  gold: "#c9a253",
+  gold: "#b8924f",
   solar: "#1b2747",
   solarFrame: "#6f7887",
   window: "#2a2f3a",
-  windowGlow: "#d6efff",
-  engine: "#6fdcff",
+  windowGlow: "#ffb769",
+  engine: "#3fb8ff",
   energy: "#57d6ff",
   beacon: "#ff4636",
   glass: "#9fe3ff",
@@ -37,7 +38,7 @@ export type MaterialSet = Record<MaterialName, THREE.MeshStandardMaterial>;
 
 const GLOWING: Partial<Record<MaterialName, number>> = {
   window: 1.3,
-  engine: 3.2,
+  engine: 1.5,
   energy: 2.4,
   beacon: 3,
   spark: 2.5,
@@ -46,12 +47,56 @@ const GLOWING: Partial<Record<MaterialName, number>> = {
   solar: 0.12
 };
 
+/** The palette in use: the base colours with the active design's overrides applied. */
+const current: Record<MaterialName, string> = { ...PALETTE };
+
+/** The plain structural surfaces a design's finish applies to (not glows or glass). */
+const STRUCTURE = new Set<MaterialName>(["hull", "hullShade", "panel", "plate", "bone", "graphite", "truss", "gunmetal", "gold", "accent"]);
+
+export interface Finish {
+  metalness: number;
+  roughness: number;
+  /** how strongly the environment map shows in the structure */
+  reflections: number;
+}
+
+let finish: Finish | undefined;
+let environment: THREE.Texture | null = null;
+/** Every material set made so far (the shared one plus each construction set), so changes reach all. */
+const sets: MaterialSet[] = [];
+
+function surface(name: MaterialName): { roughness: number; metalness: number } {
+  if (finish && STRUCTURE.has(name)) {
+    // Trim keeps a little more polish than the plates it edges.
+    const trim = name === "gold" || name === "gunmetal";
+    return { metalness: Math.min(1, finish.metalness + (trim ? 0.15 : 0)), roughness: Math.max(0.1, finish.roughness - (trim ? 0.1 : 0)) };
+  }
+  return {
+    roughness: name === "solar" || name === "glass" ? 0.35 : name === "gold" || name === "gunmetal" ? 0.4 : 0.62,
+    metalness: name === "gold" || name === "gunmetal" ? 0.65 : name === "truss" || name === "solarFrame" || name === "solar" ? 0.4 : 0.18
+  };
+}
+
+/** Brings one material in line with the current palette, finish and environment. */
+function refresh(name: MaterialName, material: THREE.MeshStandardMaterial): void {
+  material.color.set(current[name]);
+  Object.assign(material, surface(name));
+  if (GLOWING[name]) {
+    material.emissive.set(name === "window" ? current.windowGlow : current[name]);
+  }
+  const reflective = Boolean(finish && finish.reflections > 0 && STRUCTURE.has(name));
+  const envMap = reflective ? environment : null;
+  if (material.envMap !== envMap) {
+    material.envMap = envMap;
+    material.needsUpdate = true;
+  }
+  material.envMapIntensity = reflective ? finish!.reflections : 1;
+}
+
 function makeMaterial(name: MaterialName, clippingPlanes: THREE.Plane[] = []) {
   const material = new THREE.MeshStandardMaterial({
-    color: PALETTE[name],
+    color: current[name],
     flatShading: true,
-    roughness: name === "solar" || name === "glass" ? 0.35 : name === "gold" || name === "gunmetal" ? 0.4 : 0.62,
-    metalness: name === "gold" || name === "gunmetal" ? 0.65 : name === "truss" || name === "solarFrame" || name === "solar" ? 0.4 : 0.18,
     clippingPlanes,
     clipShadows: clippingPlanes.length > 0,
     transparent: name === "glass",
@@ -60,10 +105,40 @@ function makeMaterial(name: MaterialName, clippingPlanes: THREE.Plane[] = []) {
   });
   const glow = GLOWING[name];
   if (glow) {
-    material.emissive = new THREE.Color(name === "window" ? PALETTE.windowGlow : PALETTE[name]);
+    material.emissive = new THREE.Color(name === "window" ? current.windowGlow : current[name]);
     material.emissiveIntensity = glow;
   }
+  refresh(name, material);
   return material;
+}
+
+function refreshAll(): void {
+  for (const set of sets) {
+    for (const name of Object.keys(PALETTE) as MaterialName[]) {
+      refresh(name, set[name]);
+    }
+  }
+}
+
+/**
+ * Switches every material to a design's colours (unlisted colours fall back to the base palette)
+ * and, optionally, its surface finish.
+ */
+export function applyPalette(overrides: Record<string, string>, nextFinish?: Finish): void {
+  for (const name of Object.keys(PALETTE) as MaterialName[]) {
+    current[name] = overrides[name] ?? PALETTE[name];
+  }
+  finish = nextFinish;
+  refreshAll();
+}
+
+/**
+ * Gives the structure an environment to reflect. Only ship materials use it (the planet and
+ * backdrop stay matte), and only when the active design has a reflective finish.
+ */
+export function setReflections(envMap: THREE.Texture | null): void {
+  environment = envMap;
+  refreshAll();
 }
 
 export function createMaterials(clippingPlanes: THREE.Plane[] = []): MaterialSet {
@@ -71,7 +146,17 @@ export function createMaterials(clippingPlanes: THREE.Plane[] = []): MaterialSet
   for (const name of Object.keys(PALETTE) as MaterialName[]) {
     set[name] = makeMaterial(name, clippingPlanes);
   }
+  sets.push(set);
   return set;
+}
+
+/** Disposes a set made by createMaterials and stops keeping it in step with the palette. */
+export function releaseMaterials(set: MaterialSet): void {
+  const index = sets.indexOf(set);
+  if (index >= 0) {
+    sets.splice(index, 1);
+  }
+  Object.values(set).forEach((material) => material.dispose());
 }
 
 /** The shared set every finished module uses. */
@@ -134,6 +219,28 @@ export const geo = {
       });
       geometry.rotateX(-Math.PI / 2);
       geometry.translate(0, -height / 2 + bevel, 0);
+      return geometry;
+    }),
+  /**
+   * A hull cross-section (z, y pairs, viewed from the bow) extruded along x by `length` and
+   * centred on x = 0, with chamfered edges.
+   */
+  section: (outline: Array<[number, number]>, length: number, chamfer = 0.05) =>
+    cached(`section:${outline.map(([z, y]) => `${r(z)},${r(y)}`).join(";")}:${r(length)}:${r(chamfer)}`, () => {
+      const shape = new THREE.Shape();
+      outline.forEach(([z, y], index) => (index === 0 ? shape.moveTo(z, y) : shape.lineTo(z, y)));
+      shape.closePath();
+      const bevel = Math.min(chamfer, length / 4);
+      const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: Math.max(0.001, length - bevel * 2),
+        bevelEnabled: bevel > 0,
+        bevelThickness: bevel,
+        bevelSize: bevel,
+        bevelSegments: 1
+      });
+      // Shape (z, y) extruded along +z  ->  rotate so the extrusion runs along x.
+      geometry.rotateY(-Math.PI / 2);
+      geometry.translate(length / 2 - bevel, 0, 0);
       return geometry;
     }),
   /** A box with its vertical corners cut off. */

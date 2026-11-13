@@ -503,6 +503,15 @@ function main() {
       }
       return kingdom.setMode(mode);
     });
+    handle("kingdom:set-upgrade-focus", (pieceId, label) => {
+      if (pieceId !== null && !(Number.isInteger(pieceId) && pieceId >= 0 && pieceId < 100000)) {
+        throw new Error("Invalid module");
+      }
+      if (label !== undefined && (typeof label !== "string" || !/^[A-Za-z ]{1,32}$/.test(label))) {
+        throw new Error("Invalid label");
+      }
+      return kingdom.setUpgradeFocus(pieceId, label?.toLowerCase());
+    });
     handle("kingdom:clear-history", () => kingdom.clearHistory());
     handle("kingdom:open-main", () => showMain());
     handle("kingdom:hide-popup", () => popup?.hide());

@@ -1,6 +1,7 @@
 import { Suspense, lazy, useState } from "react";
 import { isPreview, useSnapshot } from "../bridge.ts";
 import { BuildStatus, LatestEvent, NowCard, StationChips, TodayBar } from "./parts.tsx";
+import { ModulePanel } from "./ModulePanel.tsx";
 import { Settings } from "./Settings.tsx";
 
 const StationView = lazy(() => import("../station/StationView.tsx"));
@@ -9,11 +10,14 @@ const StationView = lazy(() => import("../station/StationView.tsx"));
 export default function MainApp() {
   const snapshot = useSnapshot();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   if (!snapshot) {
     return <main className="main main--loading" />;
   }
+  // Preview knob (?bare): just the ship, no cards, for concept screenshots.
+  const bare = isPreview && new URLSearchParams(window.location.search).has("bare");
   return (
-    <main className="main">
+    <main className={bare ? "main main--bare" : "main"}>
       <div className="main__scene">
         <Suspense fallback={<div className="scene-fallback" />}>
           <StationView
@@ -24,9 +28,13 @@ export default function MainApp() {
             upgradeLog={snapshot.upgradeLog}
             damage={snapshot.damage}
             aliens={snapshot.aliens.length}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
           />
         </Suspense>
       </div>
+
+      {selectedId !== null ? <ModulePanel snapshot={snapshot} pieceId={selectedId} onClose={() => setSelectedId(null)} /> : null}
 
       <header className="main__top">
         <div className="card card--title">
@@ -41,6 +49,7 @@ export default function MainApp() {
       <div className="main__cards">
         <div className="card">
           <BuildStatus snapshot={snapshot} />
+          {snapshot.mode === "upgrade" ? <p className="build__hint">Click any module on the ship to pick what gets upgraded next.</p> : null}
           <LatestEvent snapshot={snapshot} />
         </div>
         <div className="card">

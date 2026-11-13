@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld("kingdom", {
   setOpenAtLogin: (enabled) => ipcRenderer.invoke("kingdom:set-open-at-login", enabled),
   setPlayAllowance: (minutes) => ipcRenderer.invoke("kingdom:set-play-allowance", minutes),
   setMode: (mode) => ipcRenderer.invoke("kingdom:set-mode", mode),
+  setUpgradeFocus: (pieceId, label) => ipcRenderer.invoke("kingdom:set-upgrade-focus", pieceId, label),
   clearHistory: () => ipcRenderer.invoke("kingdom:clear-history"),
   openMain: () => ipcRenderer.invoke("kingdom:open-main"),
   hidePopup: () => ipcRenderer.invoke("kingdom:hide-popup"),

@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { PIECES } from "../src/station/catalog.ts";
 import { resolveStation } from "../src/station/generator.ts";
-import { MAX_LEVEL, resolveUpgrades, upgradeCost } from "../src/station/upgrades.ts";
+import { MAX_LEVEL, costToMax, resolveUpgrades, upgradeCost } from "../src/station/upgrades.ts";
 
 const SEED = 4242;
 
@@ -51,6 +52,38 @@ test("building more later never undoes earlier upgrades", () => {
       assert.ok((after.levels.get(id) ?? 1) >= level, `module ${id} lost a level`);
     }
   }
+});
+
+test("a hull segment builds in 15 minutes and maxes out in about 30", () => {
+  assert.equal(PIECES.hull.cost, 15);
+  assert.ok(Math.abs(costToMax("hull", 1) - 30) <= 1, `hull full upgrade costs ${costToMax("hull", 1)}`);
+  assert.ok(upgradeCost("hull", 1) < upgradeCost("hull", 4), "later levels cost more");
+});
+
+test("a picked module gets every point until it's maxed, then the automatic order resumes", () => {
+  const pieces = resolveStation(SEED, 400).pieces;
+  const far = pieces[pieces.length - 1];
+  const log = [
+    { buildPoints: 400, upgradeFrom: 0 },
+    { type: "focus" as const, pieceId: far.id, at: 0 }
+  ];
+  const oneStep = resolveUpgrades(SEED, log, upgradeCost(far.kind, 1));
+  assert.equal(oneStep.levels.get(far.id), 2);
+  assert.equal(oneStep.coreLevel, 1); // the core was skipped in favour of the pick
+  assert.equal(oneStep.focusId, far.id);
+
+  const maxed = resolveUpgrades(SEED, log, costToMax(far.kind, 1));
+  assert.equal(maxed.levels.get(far.id), MAX_LEVEL);
+  assert.equal(maxed.focusId, null);
+  assert.equal(maxed.current?.pieceId, 0); // back to the core first
+});
+
+test("picking a module that doesn't exist yet falls back to the automatic order", () => {
+  const log = [
+    { buildPoints: 100, upgradeFrom: 0 },
+    { type: "focus" as const, pieceId: 9999, at: 0 }
+  ];
+  assert.equal(resolveUpgrades(SEED, log, 0).current?.pieceId, 0);
 });
 
 test("upgrades are deterministic", () => {

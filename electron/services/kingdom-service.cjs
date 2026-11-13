@@ -191,6 +191,13 @@ class KingdomService extends EventEmitter {
     return this.getSnapshot();
   }
 
+  setUpgradeFocus(pieceId, label) {
+    sim.setUpgradeFocus(this.state, pieceId, label);
+    this.save(true);
+    this.emitSnapshot();
+    return this.getSnapshot();
+  }
+
   updateSettings(patch) {
     this.state.settings = { ...this.state.settings, ...patch };
     this.save(true);

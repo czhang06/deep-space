@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { KingdomApi, Rule, Snapshot } from "./types.ts";
 
 // In the desktop app the preload script provides `window.kingdom`. In a plain browser
@@ -47,7 +47,7 @@ function previewApi(): KingdomApi {
     rules: [{ id: "rule-1", targetType: "app", pattern: "discord", category: "neutral" }],
     settings: { openAtLogin: true, playAllowanceMinutes: 90 },
     events: [
-      { text: "Finished a hab node.", at: Date.now() - 600000 },
+      { text: "Finished a hull segment.", at: Date.now() - 600000 },
       { text: "A new station came online. Focused work will grow it.", at: Date.now() - 86400000 }
     ]
   };
@@ -88,6 +88,14 @@ function previewApi(): KingdomApi {
       const upgradeLog =
         mode === "upgrade" ? [...snapshot.upgradeLog, { buildPoints: snapshot.buildPoints, upgradeFrom: snapshot.upgradePoints }] : snapshot.upgradeLog;
       return publish({ mode, upgradeLog });
+    },
+    setUpgradeFocus: (pieceId) => {
+      const upgradeLog = [...snapshot.upgradeLog];
+      if (snapshot.mode !== "upgrade") {
+        upgradeLog.push({ buildPoints: snapshot.buildPoints, upgradeFrom: snapshot.upgradePoints });
+      }
+      upgradeLog.push({ type: "focus", pieceId, at: snapshot.upgradePoints });
+      return publish({ mode: "upgrade", upgradeLog });
     },
     clearHistory: () => publish({ today: { work: 0, play: 0, idle: 0, neutral: 0, playAllowance: snapshot.today.playAllowance, top: [] }, events: [] }),
     openMain: () => Promise.resolve(),

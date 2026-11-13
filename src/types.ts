@@ -1,4 +1,6 @@
-﻿export type Category = "work" | "play" | "idle" | "neutral";
+﻿import type { UpgradeSegment } from "./station/upgrades.ts";
+
+export type Category = "work" | "play" | "idle" | "neutral";
 
 export interface Rule {
   id: string;
@@ -12,7 +14,7 @@ export interface Snapshot {
   buildPoints: number;
   mode: "build" | "upgrade";
   upgradePoints: number;
-  upgradeLog: Array<{ buildPoints: number; upgradeFrom: number }>;
+  upgradeLog: UpgradeSegment[];
   damage: number;
   aliens: Array<{ id: string; name: string }>;
   streakMinutes: number;
@@ -49,6 +51,7 @@ export interface KingdomApi {
   setOpenAtLogin(enabled: boolean): Promise<Snapshot>;
   setPlayAllowance(minutes: number): Promise<Snapshot>;
   setMode(mode: "build" | "upgrade"): Promise<Snapshot>;
+  setUpgradeFocus(pieceId: number | null, label?: string): Promise<Snapshot>;
   clearHistory(): Promise<Snapshot>;
   openMain(): Promise<void>;
   hidePopup(): Promise<void>;

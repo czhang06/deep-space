@@ -220,6 +220,28 @@ function setMode(state, mode, now = Date.now()) {
   return state;
 }
 
+/**
+ * Picks a module to upgrade next (switching to upgrade mode if needed); null goes back to the
+ * automatic core-outward order. `label` is the module's display name, for the event log.
+ */
+function setUpgradeFocus(state, pieceId, label, now = Date.now()) {
+  if (pieceId !== null && !(Number.isInteger(pieceId) && pieceId >= 0)) {
+    throw new Error("Invalid module");
+  }
+  if (state.mode !== "upgrade") {
+    setMode(state, "upgrade", now);
+  }
+  const last = [...state.upgradeLog].reverse().find((entry) => entry.type === "focus");
+  if (last && last.pieceId === pieceId) {
+    return state;
+  }
+  state.upgradeLog.push({ type: "focus", pieceId, at: state.upgradePoints });
+  if (pieceId !== null) {
+    pushEvent(state, `The crew started upgrading the ${label || "module"} you picked.`, now);
+  }
+  return state;
+}
+
 function damageCount(state) {
   return Math.max(0, Math.ceil(state.repairDebt / DAMAGE_COST - 1e-9));
 }
@@ -240,6 +262,7 @@ module.exports = {
   pushEvent,
   reviveState,
   setMode,
+  setUpgradeFocus,
   step,
   today
 };

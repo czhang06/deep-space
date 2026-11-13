@@ -33,6 +33,7 @@ export function useBuildStatus(snapshot: Snapshot) {
     return {
       upgrading: true,
       label: `${PIECES[current.kind].name} → Lv ${current.toLevel}`,
+      picked: upgrades.focusId === current.pieceId,
       progress: current.progress,
       built,
       coreLevel: upgrades.coreLevel,
@@ -42,6 +43,7 @@ export function useBuildStatus(snapshot: Snapshot) {
   }
   return {
     upgrading: false,
+    picked: false,
     label: stepLabel(station.current, station.planner),
     progress: station.progress,
     built,
@@ -95,7 +97,7 @@ export function BuildStatus({ snapshot }: { snapshot: Snapshot }) {
     }
   }, [snapshot.mode, status.fullyUpgraded, snapshot.paused]);
 
-  const eyebrow = snapshot.damage > 0 ? "Repairing first" : status.upgrading ? "Upgrading" : "Now building";
+  const eyebrow = snapshot.damage > 0 ? "Repairing first" : status.upgrading ? (status.picked ? "Upgrading your pick" : "Upgrading") : "Now building";
   return (
     <section className="build" aria-label="Construction">
       <div className="build__row">

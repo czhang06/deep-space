@@ -1,12 +1,12 @@
 ﻿import { useEffect, useLayoutEffect, useMemo, useRef, type ComponentRef } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import { PIECES } from "./catalog.ts";
-import { DX, DZ, resolveStation, rotateCell, type PlacedPiece } from "./generator.ts";
+import { resolveStation, worldCenter, type PlacedPiece } from "./generator.ts";
 import { journeyAt, planetTexture, ringTexture, type Planet } from "./journey.ts";
-import { createMaterials } from "./materials.ts";
-import { Alien, AssemblyFrame, CELL, MaterialContext, PieceModel, Ports, Scorch, deckBase, pieceSpan } from "./pieces.tsx";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { createMaterials, releaseMaterials, setReflections } from "./materials.ts";
+import { Alien, AssemblyFrame, CELL, MaterialContext, PieceModel, Scorch, baseY, deckBase, pieceSize, pieceSpan } from "./pieces.tsx";
 import { createRng, hash01 } from "./rng.ts";
 import { MAX_LEVEL, resolveUpgrades, type UpgradeSegment } from "./upgrades.ts";
 
@@ -20,46 +20,97 @@ export interface StationViewProps {
   aliens: number;
   /** the tray popup: fixed zoom, lower resolution */
   compact?: boolean;
+  /** main window: the module you clicked, and what to do when you click one (null = empty space) */
+  selectedId?: number | null;
+  onSelect?: (pieceId: number | null) => void;
 }
+
+/** Preview knob (?still): hold the camera still, for side-by-side comparisons. */
+const STILL = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("still");
 
 // The sun sits over the camera's starting shoulder, so the side you first see is lit and the
 // planet ahead (towards -x, -z) shows a mostly lit face.
 const SUN_DIRECTION = new THREE.Vector3(0.3, 0.55, 0.78).normalize();
 
 function pieceCenter(piece: PlacedPiece): [number, number] {
-  return [(piece.x + (piece.w - 1) / 2) * CELL, (piece.z + (piece.d - 1) / 2) * CELL];
+  return worldCenter(piece);
 }
 
-function PlacedModel({ piece, levels, tier, linked }: { piece: PlacedPiece; levels: number; tier: number; linked: boolean[] }) {
+function PlacedModel({
+  piece,
+  levels,
+  tier,
+  y,
+  onSelect
+}: {
+  piece: PlacedPiece;
+  levels: number;
+  tier: number;
+  y: number;
+  onSelect?: (pieceId: number) => void;
+}) {
   const [x, z] = pieceCenter(piece);
-  // Maxed-out modules grow a touch, so a fully upgraded ship looks heavier.
-  const scale = tier >= MAX_LEVEL ? 1.06 : 1;
+  // Maxed-out parts grow a touch, so a fully upgraded ship looks heavier.
+  const scale = tier >= MAX_LEVEL ? 1.04 : 1;
+  const handlers = onSelect
+    ? {
+        onClick: (event: ThreeEvent<MouseEvent>) => {
+          // Ignore the click that ends a camera drag.
+          if (event.delta > 6) {
+            return;
+          }
+          event.stopPropagation();
+          onSelect(piece.id);
+        },
+        onPointerOver: (event: ThreeEvent<PointerEvent>) => {
+          event.stopPropagation();
+          document.body.style.cursor = "pointer";
+        },
+        onPointerOut: () => {
+          document.body.style.cursor = "";
+        }
+      }
+    : {};
   return (
-    <group position={[x, 0, z]} rotation={[0, (-piece.rot * Math.PI) / 2, 0]}>
+    <group position={[x, y, z]} {...handlers}>
       <group scale={scale}>
-        <PieceModel kind={piece.kind} levels={levels} tier={tier} variant={piece.variant} />
+        <PieceModel kind={piece.kind} levels={levels} tier={tier} variant={piece.variant} wingTier={piece.tier} side={piece.side} aft={piece.kind === "wing" && piece.x === 0} />
       </group>
-      <Ports kind={piece.kind} linked={linked} />
     </group>
   );
 }
 
-/** The welding frame around a module while it's being upgraded. */
-function UpgradeFrame({ piece, levels, progress }: { piece: PlacedPiece; levels: number; progress: number }) {
+/** A thin glowing outline around the part you clicked. */
+function SelectionBox({ piece, levels, y }: { piece: PlacedPiece; levels: number; y: number }) {
   const [x, z] = pieceCenter(piece);
   const [bottom, top] = pieceSpan(piece.kind, levels);
+  const [w, d] = pieceSize(piece.kind, piece.tier, piece.side);
+  const h = top - bottom + 0.3;
+  const geometry = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(w + 0.2, h, d + 0.2)), [w, h, d]);
   return (
-    <group position={[x, 0, z]}>
-      <AssemblyFrame w={piece.w * CELL - 0.2} d={piece.d * CELL - 0.2} bottom={bottom - 0.1} top={top + 0.2} progress={progress} />
+    <lineSegments geometry={geometry} position={[x, y + (top + bottom) / 2, z]}>
+      <lineBasicMaterial color="#57d6ff" transparent opacity={0.9} />
+    </lineSegments>
+  );
+}
+
+/** The welding frame around a part while it's being upgraded. */
+function UpgradeFrame({ piece, levels, y, progress }: { piece: PlacedPiece; levels: number; y: number; progress: number }) {
+  const [x, z] = pieceCenter(piece);
+  const [bottom, top] = pieceSpan(piece.kind, levels);
+  const [w, d] = pieceSize(piece.kind, piece.tier, piece.side);
+  return (
+    <group position={[x, y, z]}>
+      <AssemblyFrame w={w} d={d} bottom={bottom - 0.1} top={top + 0.2} progress={progress} />
     </group>
   );
 }
 
-/** The module being built: printed up to the current progress inside a glowing frame. */
+/** The part being built: printed up to the current progress inside a glowing frame. */
 function Construction({
   piece,
   levels,
-  linked,
+  y,
   from,
   to,
   progress,
@@ -68,7 +119,7 @@ function Construction({
 }: {
   piece: PlacedPiece;
   levels: number;
-  linked: boolean[];
+  y: number;
   from: number;
   to: number;
   progress: number;
@@ -78,7 +129,7 @@ function Construction({
 }) {
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), []);
   const materials = useMemo(() => createMaterials([plane]), [plane]);
-  useEffect(() => () => Object.values(materials).forEach((material) => material.dispose()), [materials]);
+  useEffect(() => () => releaseMaterials(materials), [materials]);
   const group = useRef<THREE.Group>(null);
 
   const shown = useRef(progress);
@@ -86,23 +137,23 @@ function Construction({
     // Ease toward the real progress so growth is visible but smooth.
     shown.current += (progress - shown.current) * Math.min(1, delta * 2);
     const worldY = group.current ? group.current.getWorldPosition(new THREE.Vector3()).y : 0;
-    plane.constant = worldY + from + (to - from) * shown.current;
+    plane.constant = worldY + y + from + (to - from) * shown.current;
   });
 
   const [x, z] = pieceCenter(piece);
   const [bottom, top] = pieceSpan(piece.kind, levels);
+  const [w, d] = pieceSize(piece.kind, piece.tier, piece.side);
   return (
     <group ref={group}>
       <MaterialContext.Provider value={materials}>
-        <group position={[x, 0, z]} rotation={[0, (-piece.rot * Math.PI) / 2, 0]}>
-          <PieceModel kind={piece.kind} levels={levels} tier={tier} variant={piece.variant} />
-          <Ports kind={piece.kind} linked={linked} />
+        <group position={[x, y, z]}>
+          <PieceModel kind={piece.kind} levels={levels} tier={tier} variant={piece.variant} wingTier={piece.tier} side={piece.side} aft={piece.kind === "wing" && piece.x === 0} />
         </group>
       </MaterialContext.Provider>
-      <group position={[x, 0, z]} visible={showFrame}>
+      <group position={[x, y, z]} visible={showFrame}>
         <AssemblyFrame
-          w={piece.w * CELL - 0.3}
-          d={piece.d * CELL - 0.3}
+          w={w}
+          d={d}
           bottom={Math.min(bottom, from)}
           top={Math.max(top, to)}
           progress={(from + (to - from) * progress - Math.min(bottom, from)) / (Math.max(top, to) - Math.min(bottom, from))}
@@ -326,7 +377,8 @@ function CameraRig({ radius, compact }: { radius: number; compact: boolean }) {
 
   useLayoutEffect(() => {
     if (lastWanted.current === 0) {
-      camera.position.set(wanted * 0.6, wanted * 0.5, wanted * 0.62);
+      // A three-quarter broadside view, so the ship's length and skyline read first.
+      camera.position.set(wanted * 0.45, wanted * 0.42, wanted * 0.79);
     }
   }, [camera, wanted]);
 
@@ -355,32 +407,19 @@ function CameraRig({ radius, compact }: { radius: number; compact: boolean }) {
       enablePan={false}
       enableZoom={!compact}
       enableDamping
-      autoRotate
+      autoRotate={!STILL}
       autoRotateSpeed={compact ? 0.45 : 0.22}
-      minPolarAngle={0.2}
-      maxPolarAngle={2.2}
+      minPolarAngle={0.75}
+      maxPolarAngle={1.95}
       minDistance={6}
       maxDistance={wanted * 2.2}
     />
   );
 }
 
-/** Finds a side of a module facing open space, for aliens and scorch marks. */
-function openSide(piece: PlacedPiece, isTaken: (x: number, z: number) => boolean, pick: number) {
-  const options: Array<{ cell: [number, number]; dir: number }> = [];
-  for (const cell of piece.cells) {
-    for (let dir = 0; dir < 4; dir += 1) {
-      if (!isTaken(cell[0] + DX[dir], cell[1] + DZ[dir])) {
-        options.push({ cell, dir });
-      }
-    }
-  }
-  return options.length ? options[Math.floor(pick * options.length) % options.length] : null;
-}
-
-function Scene({ seed, buildPoints, mode, upgradePoints, upgradeLog, damage, aliens, compact = false }: StationViewProps) {
+function Scene({ seed, buildPoints, mode, upgradePoints, upgradeLog, damage, aliens, compact = false, selectedId = null, onSelect }: StationViewProps) {
   const station = resolveStation(seed, buildPoints);
-  const { builtSteps, current, planner, progress } = station;
+  const { builtSteps, current, currentPiece, planner, progress } = station;
   const upgrades = useMemo(() => resolveUpgrades(seed, upgradeLog, upgradePoints), [seed, upgradeLog, upgradePoints]);
   const tierOf = (id: number) => upgrades.levels.get(id) ?? 1;
   const upgrading = mode === "upgrade" && upgrades.current ? upgrades.current : null;
@@ -388,68 +427,47 @@ function Scene({ seed, buildPoints, mode, upgradePoints, upgradeLog, damage, ali
   // Everything below only changes when a step completes, not on every progress tick.
   const layout = useMemo(() => {
     const resolved = resolveStation(seed, planner.steps[builtSteps - 1]?.total ?? 0);
-    const pieces = resolved.pieces;
+    const all = resolved.pieces;
     const raisingTarget = current?.type === "raise" ? current.target : -1;
-    const sitePiece = current?.type === "place" ? current.piece : null;
 
-    const owner = new Map<string, number>();
-    for (const piece of [...pieces, ...(sitePiece ? [sitePiece] : [])]) {
-      for (const [x, z] of piece.cells) {
-        owner.set(`${x},${z}`, piece.id);
-      }
-    }
-    const isTaken = (x: number, z: number) => owner.has(`${x},${z}`);
-
-    const linkedFor = (piece: PlacedPiece) => {
-      const def = PIECES[piece.kind];
-      return def.connectors.map((connector) => {
-        const [lx, lz] = rotateCell(connector.x, connector.z, def.w, def.d, piece.rot);
-        const dir = (connector.dir + piece.rot) % 4;
-        const neighbour = owner.get(`${piece.x + lx + DX[dir]},${piece.z + lz + DZ[dir]}`);
-        return neighbour !== undefined && neighbour !== piece.id;
-      });
-    };
-
+    // Frame the whole ship: it lies along x, centred on z = 0.
     let minX = Infinity;
     let maxX = -Infinity;
-    let minZ = Infinity;
-    let maxZ = -Infinity;
-    for (const key of owner.keys()) {
-      const [x, z] = key.split(",").map(Number);
-      minX = Math.min(minX, x);
-      maxX = Math.max(maxX, x);
-      minZ = Math.min(minZ, z);
-      maxZ = Math.max(maxZ, z);
+    let halfWidth = 2;
+    for (const piece of [...all, ...(currentPiece ? [currentPiece] : [])]) {
+      const [cx] = pieceCenter(piece);
+      const [length, width] = pieceSize(piece.kind, piece.tier, piece.side);
+      const cz = pieceCenter(piece)[1];
+      minX = Math.min(minX, cx - length / 2);
+      maxX = Math.max(maxX, cx + length / 2);
+      halfWidth = Math.max(halfWidth, Math.abs(cz) + width / 2);
     }
-    const center: [number, number] = [((minX + maxX) / 2) * CELL, ((minZ + maxZ) / 2) * CELL];
-    const radius = Math.max(4, (Math.hypot(maxX - minX + 1, maxZ - minZ + 1) / 2) * CELL);
+    const center: [number, number] = [(minX + maxX) / 2, 0];
+    const radius = Math.max(5, Math.hypot((maxX - minX) / 2, halfWidth) + 1.0);
 
-    // Aliens and scorch marks go on recently finished modules, on a side facing open space.
-    const candidates = pieces.filter((piece) => piece.id !== 0 && piece.id !== raisingTarget).slice(-12);
+    // Aliens and scorch marks cling to the flanks of recently finished parts.
+    const candidates = all.filter((piece) => piece.id !== 0 && piece.id !== raisingTarget && piece.kind !== "spire" && piece.kind !== "superstructure").slice(-12);
     const spots = Array.from({ length: Math.max(aliens, damage) }, (_, index) => {
-      const piece = candidates[Math.floor(hash01(seed, index * 13 + 5) * candidates.length)] ?? pieces[0];
-      const side = openSide(piece, isTaken, hash01(seed, index * 29 + 11));
-      if (!side) {
-        return null;
-      }
-      const [cx, cz] = side.cell;
+      const piece = candidates[Math.floor(hash01(seed, index * 13 + 5) * candidates.length)] ?? all[0];
+      const side = piece.side || (hash01(seed, index * 29 + 11) < 0.5 ? -1 : 1);
+      const [cx, cz] = pieceCenter(piece);
+      const [, width] = pieceSize(piece.kind, piece.tier, piece.side);
+      const height = piece.kind === "superstructure" || piece.kind === "turret" ? 1.1 : piece.kind === "hangar" ? -1.4 : 0.1;
       return {
         key: `${piece.id}-${index}`,
-        position: [(cx + DX[side.dir] * 0.42) * CELL, 0.25, (cz + DZ[side.dir] * 0.42) * CELL] as [number, number, number],
-        facing: Math.atan2(DX[side.dir], DZ[side.dir])
+        position: [cx + (hash01(seed, index * 7 + 3) - 0.5) * 1.2, height, cz + side * (width / 2 - 0.25)] as [number, number, number],
+        facing: side > 0 ? 0 : Math.PI
       };
-    }).filter((spot) => spot !== null);
+    });
 
     return {
-      pieces: pieces.filter((piece) => piece.id !== raisingTarget).map((piece) => ({ piece, linked: linkedFor(piece) })),
-      raising: raisingTarget >= 0 ? pieces.find((piece) => piece.id === raisingTarget) ?? null : null,
-      siteLinked: sitePiece ? linkedFor(sitePiece) : [],
-      raisingLinked: raisingTarget >= 0 ? linkedFor(planner.pieces[raisingTarget]) : [],
+      pieces: all.filter((piece) => piece.id !== raisingTarget).map((piece) => ({ piece, y: baseY(piece, all) })),
+      all,
       center,
       radius,
       spots
     };
-  }, [seed, builtSteps, planner, current, damage, aliens]);
+  }, [seed, builtSteps, planner, current, currentPiece, damage, aliens]);
 
   const float = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
@@ -462,30 +480,38 @@ function Scene({ seed, buildPoints, mode, upgradePoints, upgradeLog, damage, ali
   });
 
   let construction = null;
-  if (current?.type === "place") {
-    const piece = current.piece;
-    const [bottom, top] = pieceSpan(piece.kind, piece.baseLevels);
-    construction = (
-      <Construction piece={piece} levels={piece.baseLevels} linked={layout.siteLinked} from={bottom} to={top} progress={progress} tier={1} showFrame={!upgrading} />
-    );
-  } else if (current?.type === "raise") {
-    const piece = planner.pieces[current.target];
-    const [, top] = pieceSpan(piece.kind, current.level);
+  if (current?.type === "place" && currentPiece) {
+    const [bottom, top] = pieceSpan(currentPiece.kind, currentPiece.baseLevels);
     construction = (
       <Construction
-        piece={piece}
-        levels={current.level}
-        linked={layout.raisingLinked}
-        from={deckBase(piece.kind, current.level)}
+        piece={currentPiece}
+        levels={currentPiece.baseLevels}
+        y={baseY(currentPiece, layout.all)}
+        from={bottom}
         to={top}
         progress={progress}
-        tier={tierOf(piece.id)}
+        tier={1}
+        showFrame={!upgrading}
+      />
+    );
+  } else if (current?.type === "raise" && currentPiece) {
+    const [, top] = pieceSpan(currentPiece.kind, current.level);
+    construction = (
+      <Construction
+        piece={currentPiece}
+        levels={current.level}
+        y={baseY(currentPiece, layout.all)}
+        from={deckBase(currentPiece.kind, current.level)}
+        to={top}
+        progress={progress}
+        tier={tierOf(currentPiece.id)}
         showFrame={!upgrading}
       />
     );
   }
 
-  const upgradeTarget = upgrading ? layout.pieces.find(({ piece }) => piece.id === upgrading.pieceId)?.piece : undefined;
+  const upgradeTarget = upgrading ? layout.pieces.find(({ piece }) => piece.id === upgrading.pieceId) : undefined;
+  const selected = selectedId !== null ? layout.pieces.find(({ piece }) => piece.id === selectedId) : undefined;
 
   return (
     <>
@@ -494,12 +520,13 @@ function Scene({ seed, buildPoints, mode, upgradePoints, upgradeLog, damage, ali
       <CameraRig radius={layout.radius} compact={compact} />
       <group ref={float}>
         <group position={[-layout.center[0], 0, -layout.center[1]]}>
-          {layout.pieces.map(({ piece, linked }) => (
-            <PlacedModel key={piece.id} piece={piece} levels={piece.levels} tier={tierOf(piece.id)} linked={linked} />
+          {layout.pieces.map(({ piece, y }) => (
+            <PlacedModel key={piece.id} piece={piece} levels={piece.levels} tier={tierOf(piece.id)} y={y} onSelect={onSelect} />
           ))}
+          {selected ? <SelectionBox piece={selected.piece} levels={selected.piece.levels} y={selected.y} /> : null}
           {construction}
           {upgrading && upgradeTarget ? (
-            <UpgradeFrame piece={upgradeTarget} levels={(upgradeTarget as PlacedPiece & { levels: number }).levels} progress={upgrading.progress} />
+            <UpgradeFrame piece={upgradeTarget.piece} levels={upgradeTarget.piece.levels} y={upgradeTarget.y} progress={upgrading.progress} />
           ) : null}
           {layout.spots.map((spot, index) => (
             <group key={spot.key} position={spot.position} rotation={[0, spot.facing, 0]}>
@@ -518,8 +545,19 @@ function Scene({ seed, buildPoints, mode, upgradePoints, upgradeLog, damage, ali
 }
 
 export default function StationView(props: StationViewProps) {
+  // Clicking empty space clears the selection, but not when the click ends a camera drag.
+  const downAt = useRef<[number, number]>([0, 0]);
   return (
     <Canvas
+      onPointerDown={(event) => {
+        downAt.current = [event.clientX, event.clientY];
+      }}
+      onPointerMissed={(event) => {
+        const moved = Math.hypot(event.clientX - downAt.current[0], event.clientY - downAt.current[1]);
+        if (moved < 6) {
+          props.onSelect?.(null);
+        }
+      }}
       shadows
       dpr={props.compact ? 1 : [1, 2]}
       gl={{ antialias: true, localClippingEnabled: true }}
@@ -528,6 +566,10 @@ export default function StationView(props: StationViewProps) {
         gl.localClippingEnabled = true;
         gl.toneMapping = THREE.ACESFilmicToneMapping;
         gl.toneMappingExposure = 1.3;
+        // A soft studio room for metal finishes to reflect (made locally, nothing downloaded).
+        const pmrem = new THREE.PMREMGenerator(gl);
+        setReflections(pmrem.fromScene(new RoomEnvironment(), 0.04).texture);
+        pmrem.dispose();
       }}
     >
       <Scene {...props} />

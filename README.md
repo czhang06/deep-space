@@ -1,10 +1,10 @@
 # Deep Space
 
-A little warship-style space station that lives in your Windows system tray and grows while you focus.
+A dark grey battleship that lives in your Windows system tray and grows while you focus.
 
-Focused work snaps new modules onto the station: corridors, hab nodes that stack into towers, lab modules, docking ports with shuttles, observatories, solar arrays, greenhouse domes, comms dishes and, later on, spinning ring habitats. As it grows, the station drifts outward through the solar system, past Mercury, Venus, Earth and Mars out to Jupiter, Saturn, Uranus, Neptune and Pluto, then starts another lap.
+Focused work adds to the ship: hull sections behind an armoured prow, escort ships docked along the flanks (each with forward needle banks), stepped command towers, spires, lattice masts, needle arrays, turrets, broadside batteries and hangars. It grows wider as well as longer, keeping roughly a 1.6:1 outline that tapers to the bow, and the two flanks fill unevenly so it never looks stamped out. As it grows, the ship drifts outward through the solar system, past Mercury, Venus, Earth and Mars out to Jupiter, Saturn, Uranus, Neptune and Pluto, then starts another lap.
 
-Flip to **Upgrade mode** (popup, Settings or tray menu) and focused work levels up the modules you already have instead, Clash-of-Clans style: the command core goes first, then the upgrade ripples outward, and nothing reaches the next level until everything reachable has the current one. Each of the five levels adds visible detail: armour plating, red stripes and beacons, gunmetal trim and surface detail, then glowing energy lines. When everything is maxed it switches back to building.
+Flip to **Upgrade mode** (popup, Settings or tray menu) and focused work levels up the modules you already have instead, Clash-of-Clans style: the bridge goes first, then upgrades ripple outward, and nothing reaches the next level until everything closer in has the current one. Click a module in the main window to see its level and pick it to upgrade next. A new hull section takes about 15 focused minutes to build and about 30 more to take through all five levels. When everything is maxed it switches back to building.
 
 Breaks cost nothing. Play is free up to a daily allowance; past that, aliens latch onto the hull, scorch it and slow construction until more work repairs the damage and pries them off.
 
@@ -13,7 +13,7 @@ Everything runs locally. See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY
 ## Using it
 
 - **Install**: run `release/Deep Space Setup <version>.exe`. It installs for your user only and adds a desktop shortcut and a Start-menu entry.
-- **Tray**: click the station icon by the clock for a quick look. Right-click it to pause, toggle "Start with Windows", or quit.
+- **Tray**: click the ship icon by the clock for a quick look. Right-click it to pause, toggle "Start with Windows", or quit.
 - **Main window**: the desktop shortcut, or the expand button in the popup, opens the full view. Closing it keeps the app running in the tray.
 - **Wrong category?** "Right now" shows what's in front. Click Work, Play or Neutral to always count that app or site that way.
 
@@ -27,9 +27,9 @@ Everything runs locally. See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY
 
 A new category has to hold for a minute before it counts, so a quick alt-tab doesn't flip anything. Five minutes without input, or a locked screen, counts as a break.
 
-## How the station grows
+## How the ship grows
 
-The station is generated jigsaw-style from a fixed seed. Every module has docking ports (corridor ends, node sides, side mounts), and each new module snaps onto an open port whose pool allows it. Some steps add a deck to a hab node or the command core instead. The plan is deterministic, so the station is rebuilt exactly from `(seed, build points)` and never reshuffles. One build point is one focused minute (1.5× once a streak passes 25 minutes), and later modules cost more. Every 10 finished steps moves the station on to the next planet. Upgrades are derived the same way: the app logs where building stood each time you enter upgrade mode, so replaying that log gives identical levels, and modules built later never reshuffle earlier upgrades.
+The ship is generated from a fixed seed and a design preset (`src/station/designs.ts`: outline ratio, bow taper, which structures it favours, escort classes, colours and finish). Each step adds a hull section, an escort on a free flank slot, or a structure on a free deck; the generator keeps the average width in step with the length so it fills out sideways instead of only getting longer. The plan is deterministic, so the ship is rebuilt exactly from `(seed, build points)` and never reshuffles. One build point is one focused minute (1.5× once a streak passes 25 minutes), and later modules cost a little more. Every 10 finished steps moves the ship on to the next planet. Upgrades are derived the same way: the app logs where building stood each time you enter upgrade mode and each module you pick, so replaying that log gives identical levels.
 
 ## Development
 
@@ -42,12 +42,12 @@ npm run check          # TypeScript
 npm run dist           # tests + build + Windows installer in release/
 ```
 
-Browser-preview knobs: `?points=900&damage=1&aliens=2&grow=5&mode=upgrade&upgrade=700` (`grow` adds points every second).
+Browser-preview knobs: `?points=900&damage=1&aliens=2&grow=5&mode=upgrade&upgrade=700` (`grow` adds points every second), `?design=gothic` (other presets: raft, wedge, crown), `?still` (no auto-rotate), `?bare` (hide the cards).
 
 | Path | What |
 | --- | --- |
 | `electron/main.cjs` | Tray, popup and main windows, `app://` protocol, security hardening, IPC |
 | `electron/services/` | Foreground watcher, classifier, simulation, storage |
-| `src/station/` | Module catalog, jigsaw generator, upgrade planner, 3D modules and upgrade tiers, solar-system journey, scene |
+| `src/station/` | Part catalog, design presets, ship generator, upgrade planner, 3D parts and upgrade tiers, solar-system journey, scene |
 | `src/ui/` | Popup, main window, settings |
 | `scripts/make-icons.mjs` | Draws the app and tray icons |
