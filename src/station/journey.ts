@@ -138,9 +138,13 @@ export function distanceOf(index: number): number {
   return DISTANCE_KM["the Sombrero Galaxy"] * Math.pow(1.12, index - PLANETS.length + 1);
 }
 
-/** A distance in km, in the unit that suits it: km, million or billion km, then light years. */
+/**
+ * A distance in km, in the unit that suits it: km, million or billion km, then light years.
+ * Four significant figures, so the number keeps ticking over as the ship travels.
+ */
 export function formatDistance(km: number): string {
-  const round = (value: number) => (value < 10 ? value.toFixed(1) : Math.round(value).toLocaleString("en-US"));
+  const round = (value: number) =>
+    value >= 1000 ? Math.round(value).toLocaleString("en-US") : value.toLocaleString("en-US", { maximumSignificantDigits: 4, minimumSignificantDigits: 4 });
   if (km < 1e6) {
     return `${round(km)} km`;
   }
@@ -152,7 +156,7 @@ export function formatDistance(km: number): string {
     return `${round(km / 1e9)} billion km`;
   }
   if (ly < 1) {
-    return `${ly.toFixed(2)} light years`;
+    return `${ly.toFixed(3)} light years`;
   }
   if (ly < 1e6) {
     return `${round(ly)} light years`;
@@ -177,20 +181,18 @@ export function speedAt(builtSteps: number): number {
   return 0.04 * Math.pow(10, builtSteps / 55);
 }
 
+/** Speed in plain words: a share of light speed, then a multiple of it. */
 export function formatSpeed(c: number): string {
-  if (c < 1) {
-    return `${c.toFixed(2)}c`;
+  if (c < 0.995) {
+    return `${Math.max(1, Math.round(c * 100))}% of light speed`;
   }
-  if (c < 1000) {
-    return `${Math.round(c)}c`;
+  if (c < 1.5) {
+    return "Light speed";
   }
   if (c < 1e6) {
-    return `${(c / 1000).toFixed(c < 1e4 ? 1 : 0)}k c`;
+    return `${Math.round(c).toLocaleString("en-US")}× light speed`;
   }
-  if (c < 1e9) {
-    return `${(c / 1e6).toFixed(c < 1e7 ? 1 : 0)}M c`;
-  }
-  return `${(c / 1e9).toFixed(1)}B c`;
+  return `${(c / 1e6).toFixed(1)} million × light speed`;
 }
 
 export interface JourneyState {
@@ -223,12 +225,10 @@ export function journeyAt(builtSteps: number, progress = 0): JourneyState {
   const label = fraction < 0.65 ? `Passing ${current.name}` : `Heading for ${next.name}`;
   // Distances span from thousands of km to billions of light years, so the far legs ease
   // across them on a log scale; inside the solar system it's a plain blend.
-  // The readout lingers near the place being passed, then speeds toward the next one.
+  // The readout moves steadily across the whole leg.
   const from = distanceOf(index);
   const to = distanceOf(index + 1);
-  const t = Math.max(0, (fraction - 0.3) / 0.7);
-  const eased = t * t * (3 - 2 * t);
-  const distance = index < 8 ? from + (to - from) * eased : Math.exp(Math.log(from) + (Math.log(to) - Math.log(from)) * eased);
+  const distance = index < 8 ? from + (to - from) * fraction : Math.exp(Math.log(from) + (Math.log(to) - Math.log(from)) * fraction);
   return { current, next, leg: fraction, index, region, speed: speedAt(builtSteps), distance, label };
 }
 

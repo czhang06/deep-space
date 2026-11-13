@@ -232,8 +232,11 @@ export function StationChips({ snapshot }: { snapshot: Snapshot }) {
       <li className="folk__level" title={`${modules} module${modules === 1 ? "" : "s"}; command core at level ${coreLevel}`}>
         Lv {coreLevel} {"·"} {modules} module{modules === 1 ? "" : "s"}
       </li>
-      <li title={`In ${journey.region}. The ship gets faster as it grows.`}>
-        <i className="dot tone-work" /> {journey.label} {"·"} {formatSpeed(journey.speed)}
+      <li title={`In ${journey.region}`}>
+        <i className="dot tone-work" /> {journey.label}
+      </li>
+      <li className="folk__speed" title="The ship gets faster as it grows">
+        {formatSpeed(journey.speed)}
       </li>
       <li className="folk__distance" title="Distance from Earth">
         {formatDistance(journey.distance)} from Earth

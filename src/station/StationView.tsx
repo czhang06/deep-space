@@ -268,7 +268,7 @@ function FarBody({ place, angle, distance }: { place: Planet; angle: number; dis
     return new THREE.SpriteMaterial({ map, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.95, rotation: place.tilt * 0.4 });
   }, [place]);
   const size = place.size * (place.style === "galaxy" ? 85 : 110);
-  const position: [number, number, number] = [Math.cos(angle) * distance * 1.3, -distance * 0.42, Math.sin(angle) * distance * 1.3];
+  const position: [number, number, number] = [Math.cos(angle) * distance * 1.3, -distance * 0.36, Math.sin(angle) * distance * 1.3];
   return <sprite material={material} position={position} scale={[size, size, 1]} renderOrder={-2} />;
 }
 
@@ -355,17 +355,20 @@ function Backdrop({ builtSteps, progress, compact }: { builtSteps: number; progr
     scene.fog = null;
   }, [scene, journey.current, journey.next, journey.leg]);
 
-  // The current planet slides past and away; the next one drifts in to take its place, ending
-  // the leg where the current one started, so the hand-over is seamless.
+  // The ship flies bow-first (+x). The next destination waits off the bow, far away and small,
+  // and grows as the ship closes in; once reached, it slides back along the far side and drops
+  // behind. The hand-over is seamless: the next one ends the leg where the current one starts.
   const distance = 420;
-  const currentAngle = -2.0 - journey.leg * 1.4;
-  const nextAngle = currentAngle + 1.4;
+  const AHEAD = -0.45;
+  const currentAngle = AHEAD - journey.leg * 1.6;
+  const nextAngle = AHEAD;
+  const nextDistance = distance * (1 + (1 - journey.leg) * 1.6);
   return (
     <>
       <Stars count={compact ? 1200 : 2600} />
       <Sun size={journey.current.sun.size + (journey.next.sun.size - journey.current.sun.size) * journey.leg} />
       <Destination place={journey.current} angle={currentAngle} distance={distance} />
-      {journey.leg > 0.35 ? <Destination place={journey.next} angle={nextAngle} distance={distance * 1.15} /> : null}
+      {journey.leg > 0.35 ? <Destination place={journey.next} angle={nextAngle} distance={nextDistance} /> : null}
     </>
   );
 }
@@ -423,8 +426,8 @@ function CameraRig({ radius, compact }: { radius: number; compact: boolean }) {
 
   useLayoutEffect(() => {
     if (lastWanted.current === 0) {
-      // A three-quarter broadside view, so the ship's length and skyline read first.
-      camera.position.set(wanted * 0.45, wanted * 0.42, wanted * 0.79);
+      // A chase view from behind the stern quarter, looking up the ship toward where it's headed.
+      camera.position.set(-wanted * 0.6, wanted * 0.38, wanted * 0.7);
     }
   }, [camera, wanted]);
 

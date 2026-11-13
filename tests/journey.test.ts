@@ -34,11 +34,13 @@ test("the ship speeds up as it grows", () => {
 
 test("distances and speeds read in sensible units", () => {
   assert.equal(formatDistance(384400), "384,400 km");
-  assert.equal(formatDistance(78e6), "78 million km");
-  assert.equal(formatDistance(4.4e9), "4.4 billion km");
-  assert.equal(formatDistance(4.37 * 9.4607e12), "4.4 light years");
-  assert.equal(formatDistance(2.5e6 * 9.4607e12), "2.5 million light years");
-  assert.equal(formatSpeed(0.5), "0.50c");
-  assert.equal(formatSpeed(40), "40c");
-  assert.equal(formatSpeed(2500), "2.5k c");
+  assert.equal(formatDistance(78.2e6), "78.20 million km");
+  assert.equal(formatDistance(4.4e9), "4.400 billion km");
+  assert.equal(formatDistance(4.37 * 9.4607e12), "4.370 light years");
+  assert.equal(formatDistance(2164.3 * 9.4607e12), "2,164 light years");
+  assert.equal(formatDistance(2.5e6 * 9.4607e12), "2.500 million light years");
+  assert.equal(formatSpeed(0.08), "8% of light speed");
+  assert.equal(formatSpeed(1.2), "Light speed");
+  assert.equal(formatSpeed(40.4), "40× light speed");
+  assert.equal(formatSpeed(2500), "2,500× light speed");
 });
