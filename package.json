@@ -1,7 +1,7 @@
 {
   "name": "tiny-kingdom",
   "productName": "Deep Space",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "private": true,
   "description": "A little space station in your system tray that grows while you focus.",
   "author": "czhang06",

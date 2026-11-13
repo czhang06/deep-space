@@ -32,6 +32,8 @@ const STILL = typeof window !== "undefined" && new URLSearchParams(window.locati
 // planet ahead (towards -x, -z) shows a mostly lit face.
 const SUN_DIRECTION = new THREE.Vector3(0.3, 0.55, 0.78).normalize();
 
+type Vec3 = [number, number, number];
+
 function pieceCenter(piece: PlacedPiece): [number, number] {
   return worldCenter(piece);
 }
@@ -244,7 +246,7 @@ function Sun({ size }: { size: number }) {
  * A star being passed: a wide coloured corona, the star's face (white-hot middle, darker rim,
  * mottled surface) always turned to the camera, and faint diffraction spikes.
  */
-function StarBody({ place, angle, distance }: { place: Planet; angle: number; distance: number }) {
+function StarBody({ place, position }: { place: Planet; position: Vec3 }) {
   const radius = place.size * 22;
   const materials = useMemo(() => {
     const glow = (opacity: number) =>
@@ -263,7 +265,6 @@ function StarBody({ place, angle, distance }: { place: Planet; angle: number; di
       })
     };
   }, [place]);
-  const position: [number, number, number] = [Math.cos(angle) * distance, -distance * 0.2, Math.sin(angle) * distance];
   return (
     <group position={position}>
       <sprite material={materials.outer} scale={[radius * 16, radius * 16, 1]} renderOrder={-3} />
@@ -275,28 +276,29 @@ function StarBody({ place, angle, distance }: { place: Planet; angle: number; di
 }
 
 /** A nebula, star cluster or galaxy: a large glowing image far behind everything else. */
-function FarBody({ place, angle, distance }: { place: Planet; angle: number; distance: number }) {
+function FarBody({ place, position }: { place: Planet; position: Vec3 }) {
   const material = useMemo(() => {
     const map = place.style === "nebula" ? nebulaTexture(place) : place.style === "cluster" ? clusterTexture(place) : galaxyTexture(place);
     return new THREE.SpriteMaterial({ map, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.95, rotation: place.tilt * 0.4 });
   }, [place]);
-  const size = place.size * (place.style === "galaxy" ? 85 : 110);
-  const position: [number, number, number] = [Math.cos(angle) * distance * 1.3, -distance * 0.36, Math.sin(angle) * distance * 1.3];
-  return <sprite material={material} position={position} scale={[size, size, 1]} renderOrder={-2} />;
+  // Much further away than planets and stars: pushed out along the same line of sight.
+  const size = place.size * (place.style === "galaxy" ? 130 : 165);
+  const far: Vec3 = [position[0] * 1.5, position[1] * 1.5, position[2] * 1.5];
+  return <sprite material={material} position={far} scale={[size, size, 1]} renderOrder={-2} />;
 }
 
 /** Whatever is being passed: a planet, a star, or something much further away. */
-function Destination({ place, angle, distance }: { place: Planet; angle: number; distance: number }) {
+function Destination({ place, position }: { place: Planet; position: Vec3 }) {
   if (place.style === "star") {
-    return <StarBody place={place} angle={angle} distance={distance} />;
+    return <StarBody place={place} position={position} />;
   }
   if (place.style === "nebula" || place.style === "galaxy" || place.style === "cluster") {
-    return <FarBody place={place} angle={angle} distance={distance} />;
+    return <FarBody place={place} position={position} />;
   }
-  return <PlanetBody planet={place} angle={angle} distance={distance} />;
+  return <PlanetBody planet={place} position={position} />;
 }
 
-function PlanetBody({ planet, angle, distance }: { planet: Planet; angle: number; distance: number }) {
+function PlanetBody({ planet, position }: { planet: Planet; position: Vec3 }) {
   const body = useRef<THREE.Mesh>(null);
   const radius = planet.size * 34;
   const material = useMemo(() => new THREE.MeshStandardMaterial({ map: planetTexture(planet), roughness: 0.95, metalness: 0 }), [planet]);
@@ -341,7 +343,6 @@ function PlanetBody({ planet, angle, distance }: { planet: Planet; angle: number
     }
   });
 
-  const position: [number, number, number] = [Math.cos(angle) * distance, -distance * 0.28, Math.sin(angle) * distance];
   return (
     <group position={position} rotation={[0, 0, planet.tilt]}>
       <mesh ref={body} material={material}>
@@ -368,20 +369,19 @@ function Backdrop({ builtSteps, progress, compact }: { builtSteps: number; progr
     scene.fog = null;
   }, [scene, journey.current, journey.next, journey.leg]);
 
-  // The ship flies bow-first (+x). The next destination waits off the bow, far away and small,
-  // and grows as the ship closes in; once reached, it slides back along the far side and drops
-  // behind. The hand-over is seamless: the next one ends the leg where the current one starts.
-  const distance = 420;
-  const AHEAD = -0.45;
-  const currentAngle = AHEAD - journey.leg * 1.6;
-  const nextAngle = AHEAD;
-  const nextDistance = distance * (1 + (1 - journey.leg) * 1.6);
+  // The ship flies bow-first (+x) along a lane parallel to a line of destinations off its port
+  // side. The next one starts far ahead, nearly on the bow, and comes up the lane as the ship
+  // closes in; the one being passed is abeam at the start of the leg and slides away astern.
+  // The hand-over is seamless: the next one ends the leg exactly where the current one starts.
+  const AHEAD = 1100;
+  const LANE: Vec3 = [0, -110, -330];
+  const along = (x: number): Vec3 => [x, LANE[1], LANE[2]];
   return (
     <>
       <Stars count={compact ? 1200 : 2600} />
       <Sun size={journey.current.sun.size + (journey.next.sun.size - journey.current.sun.size) * journey.leg} />
-      <Destination place={journey.current} angle={currentAngle} distance={distance} />
-      {journey.leg > 0.35 ? <Destination place={journey.next} angle={nextAngle} distance={nextDistance} /> : null}
+      <Destination place={journey.current} position={along(-journey.leg * AHEAD)} />
+      <Destination place={journey.next} position={along((1 - journey.leg) * AHEAD)} />
     </>
   );
 }
@@ -440,7 +440,7 @@ function CameraRig({ radius, compact }: { radius: number; compact: boolean }) {
   useLayoutEffect(() => {
     if (lastWanted.current === 0) {
       // A chase view from behind the stern quarter, looking up the ship toward where it's headed.
-      camera.position.set(-wanted * 0.6, wanted * 0.38, wanted * 0.7);
+      camera.position.set(-wanted * 0.78, wanted * 0.36, wanted * 0.5);
     }
   }, [camera, wanted]);
 
