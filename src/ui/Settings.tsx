@@ -30,7 +30,7 @@ export function PrivacyNotice() {
       <ul>
         <li>Minutes per day of work, play, break and neutral time, for the last 60 days.</li>
         <li>Minutes per app or recognised site per day. Unrecognised sites are grouped as "Other sites".</li>
-        <li>Your rules, your settings, and the station's progress.</li>
+        <li>Your rules, your settings, the station's progress, and when it reached each place on its journey.</li>
       </ul>
       <h4>What it never keeps</h4>
       <ul>
@@ -112,6 +112,19 @@ export function Settings({ snapshot, onClose }: { snapshot: Snapshot; onClose: (
             <span>Start Deep Space when Windows starts</span>
           </label>
           <p className="muted">It opens quietly in the system tray, by the clock.</p>
+        </section>
+
+        <section className="sheet__section">
+          <h3>Milestones</h3>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={snapshot.settings.milestoneNotifications}
+              onChange={(event) => void api.setMilestoneNotifications(event.target.checked)}
+            />
+            <span>Notify me when the ship reaches a new place</span>
+          </label>
+          <p className="muted">Every arrival is also written in the logbook.</p>
         </section>
 
         <section className="sheet__section">

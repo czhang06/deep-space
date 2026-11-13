@@ -108,3 +108,42 @@ test("old prototype saves are not revived", () => {
   assert.equal(revived.buildPoints, 12);
   assert.equal(revived.settings.playAllowanceMinutes, 90);
 });
+
+test("milestones already passed are backfilled with dates from the daily history", () => {
+  const now = new Date("2026-11-10T18:00:00").getTime();
+  const state = sim.createState({ seed: 1, now });
+  // 60 focused minutes on each of three days at up to 1.5 points a minute (270), plus 10 earlier.
+  state.days = {
+    "2026-11-08": { work: 60, play: 0, idle: 0, neutral: 0, labels: {}, aliensArrived: 0 },
+    "2026-11-09": { work: 60, play: 0, idle: 0, neutral: 0, labels: {}, aliensArrived: 0 },
+    "2026-11-10": { work: 60, play: 0, idle: 0, neutral: 0, labels: {}, aliensArrived: 0 }
+  };
+  state.buildPoints = 280;
+  const plan = [
+    { index: 0, points: 0, name: "Mercury", detail: "x" },
+    { index: 1, points: 150, name: "Venus", detail: "x" },
+    { index: 2, points: 270, name: "Earth", detail: "x" },
+    { index: 3, points: 500, name: "Mars", detail: "x" }
+  ];
+  sim.setMilestonePlan(state, plan, now);
+  const reached = Object.fromEntries(state.milestones.reached.map((entry) => [entry.index, entry]));
+  assert.equal(reached[0].at, null); // before the records began
+  assert.equal(new Date(reached[1].at).getDate(), 9);
+  assert.equal(new Date(reached[2].at).getDate(), 10);
+  assert.ok(reached[2].approx);
+  assert.equal(reached[3], undefined);
+});
+
+test("reaching a milestone records it once, with an event, and reports it for a notification", () => {
+  const now = Date.now();
+  const state = sim.createState({ seed: 1, now });
+  sim.setMilestonePlan(state, [{ index: 9, points: 30, name: "Alpha Centauri", detail: "4.370 light years from Earth", announce: "You've left the solar system!" }], now);
+  assert.equal(sim.checkMilestones(state, now).length, 0);
+  state.buildPoints = 31;
+  const arrived = sim.checkMilestones(state, now + 1000);
+  assert.equal(arrived.length, 1);
+  assert.equal(arrived[0].name, "Alpha Centauri");
+  assert.deepEqual(state.milestones.reached, [{ index: 9, at: now + 1000 }]);
+  assert.match(state.events[0].text, /left the solar system/);
+  assert.equal(sim.checkMilestones(state, now + 2000).length, 0);
+});

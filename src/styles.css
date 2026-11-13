@@ -769,3 +769,169 @@ button {
   border-radius: 4px;
   background: var(--panel-2);
 }
+
+/* ---- journey: next stop and logbook ------------------------------------------------ */
+
+.main__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.button--glass {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: rgba(20, 27, 45, 0.7);
+  backdrop-filter: blur(6px);
+}
+
+.button--glass:hover {
+  background: rgba(37, 46, 68, 0.95);
+}
+
+.next-stop {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.card--title .next-stop {
+  max-width: 420px;
+  padding-top: 7px;
+  border-top: 1px solid var(--line);
+}
+
+.next-stop--button {
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.next-stop--button:hover .next-stop__name {
+  color: #fff;
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+}
+
+.next-stop__name {
+  display: block;
+  font-size: 15px;
+}
+
+.meter--journey .meter__fill {
+  background: linear-gradient(90deg, var(--work), #9fd0ff);
+  box-shadow: 0 0 10px rgba(91, 141, 239, 0.6);
+}
+
+.logbook__summary {
+  margin: 2px 0 0;
+}
+
+.logbook__list {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.logbook__entry {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: start;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 9px;
+}
+
+.logbook__mark {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 99px;
+  font-size: 12px;
+}
+
+.logbook__text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.logbook__text small,
+.logbook__when {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.logbook__when {
+  padding-top: 2px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.logbook__entry--done .logbook__mark {
+  background: rgba(91, 141, 239, 0.18);
+  color: #9fc0ff;
+}
+
+.logbook__entry--next {
+  grid-template-columns: 22px 1fr;
+  background: var(--panel-2);
+  border: 1px solid rgba(91, 141, 239, 0.35);
+}
+
+.logbook__entry--next .logbook__mark {
+  background: var(--work);
+  color: #fff;
+}
+
+.logbook__entry--next .meter {
+  display: block;
+  margin: 6px 0 3px;
+}
+
+.logbook__entry--next .meter__fill {
+  display: block;
+}
+
+.logbook__entry--ahead {
+  opacity: 0.6;
+}
+
+.logbook__entry--ahead .logbook__mark {
+  border: 1px dashed var(--line);
+  color: var(--ink-faint);
+}
+
+.logbook__more {
+  padding: 4px 18px 18px;
+  margin: 0;
+}
+
+/* The title line floats over the scene with no panel; chips carry their own glass. */
+.main__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  max-width: calc(100% - 180px);
+}
+
+.main__title .wordmark--large {
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+}
+
+.main__cards .next-stop {
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}

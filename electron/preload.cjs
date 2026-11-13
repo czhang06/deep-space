@@ -16,6 +16,13 @@ contextBridge.exposeInMainWorld("kingdom", {
   setPlayAllowance: (minutes) => ipcRenderer.invoke("kingdom:set-play-allowance", minutes),
   setMode: (mode) => ipcRenderer.invoke("kingdom:set-mode", mode),
   setUpgradeFocus: (pieceId, label) => ipcRenderer.invoke("kingdom:set-upgrade-focus", pieceId, label),
+  setMilestonePlan: (plan) => ipcRenderer.invoke("kingdom:set-milestone-plan", plan),
+  setMilestoneNotifications: (enabled) => ipcRenderer.invoke("kingdom:set-milestone-notifications", enabled),
+  onOpenLogbook: (listener) => {
+    const wrapped = () => listener();
+    ipcRenderer.on("kingdom:open-logbook", wrapped);
+    return () => ipcRenderer.removeListener("kingdom:open-logbook", wrapped);
+  },
   clearHistory: () => ipcRenderer.invoke("kingdom:clear-history"),
   openMain: () => ipcRenderer.invoke("kingdom:open-main"),
   hidePopup: () => ipcRenderer.invoke("kingdom:hide-popup"),

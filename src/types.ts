@@ -1,4 +1,5 @@
-﻿import type { UpgradeSegment } from "./station/upgrades.ts";
+﻿import type { MilestonePlanEntry } from "./station/milestones.ts";
+import type { UpgradeSegment } from "./station/upgrades.ts";
 
 export type Category = "work" | "play" | "idle" | "neutral";
 
@@ -37,7 +38,9 @@ export interface Snapshot {
   pausedUntil: number | null;
   tracking: "live" | "starting" | "unsupported" | "preview";
   rules: Rule[];
-  settings: { openAtLogin: boolean; playAllowanceMinutes: number };
+  settings: { openAtLogin: boolean; playAllowanceMinutes: number; milestoneNotifications: boolean };
+  /** places on the journey already reached; at is null when reached before the daily records */
+  milestones: Array<{ index: number; at: number | null; approx?: boolean }>;
   events: Array<{ text: string; at: number }>;
 }
 
@@ -52,6 +55,10 @@ export interface KingdomApi {
   setPlayAllowance(minutes: number): Promise<Snapshot>;
   setMode(mode: "build" | "upgrade"): Promise<Snapshot>;
   setUpgradeFocus(pieceId: number | null, label?: string): Promise<Snapshot>;
+  setMilestonePlan(plan: MilestonePlanEntry[]): Promise<Snapshot>;
+  setMilestoneNotifications(enabled: boolean): Promise<Snapshot>;
+  /** the main window is asked to show the logbook (from a milestone notification) */
+  onOpenLogbook?(listener: () => void): () => void;
   clearHistory(): Promise<Snapshot>;
   openMain(): Promise<void>;
   hidePopup(): Promise<void>;

@@ -1,6 +1,7 @@
 import { Suspense, lazy } from "react";
 import { api, useSnapshot } from "../bridge.ts";
-import { BuildStatus, NowCard, StationChips, TodayBar } from "./parts.tsx";
+import type { Snapshot } from "../types.ts";
+import { BuildStatus, NextStop, NowCard, StationChips, TodayBar, useMilestonePlan } from "./parts.tsx";
 
 const StationView = lazy(() => import("../station/StationView.tsx"));
 
@@ -10,6 +11,12 @@ export default function PopupApp() {
   if (!snapshot) {
     return <div className="popup popup--loading" />;
   }
+  return <Popup snapshot={snapshot} />;
+}
+
+function Popup({ snapshot }: { snapshot: Snapshot }) {
+  // The popup stays loaded in the background, so it keeps the milestone plan current.
+  useMilestonePlan(snapshot);
   return (
     <div className="popup">
       <div className="popup__scene">
@@ -52,6 +59,7 @@ export default function PopupApp() {
       </div>
       <div className="popup__body">
         <BuildStatus snapshot={snapshot} />
+        <NextStop snapshot={snapshot} />
         <NowCard snapshot={snapshot} />
         <TodayBar snapshot={snapshot} />
       </div>

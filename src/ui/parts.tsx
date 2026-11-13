@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../bridge.ts";
 import { PIECES } from "../station/catalog.ts";
 import { resolveStation, stepLabel } from "../station/generator.ts";
-import { formatDistance, formatSpeed, journeyAt } from "../station/journey.ts";
+import { destination, formatDistance, formatSpeed, journeyAt } from "../station/journey.ts";
+import { milestonePlan, milestonePoints, placeTitle } from "../station/milestones.ts";
 import { resolveUpgrades } from "../station/upgrades.ts";
 import type { Category, Snapshot } from "../types.ts";
 
@@ -218,6 +219,49 @@ export function NowCard({ snapshot }: { snapshot: Snapshot }) {
           </p>
         </>
       ) : null}
+    </section>
+  );
+}
+
+/**
+ * Keeps the main process's milestone plan current: every place up to a few beyond the next
+ * stop, so arrivals get recorded (and announced) even when no window is open.
+ */
+export function useMilestonePlan(snapshot: Snapshot): void {
+  const station = resolveStation(snapshot.seed, snapshot.buildPoints);
+  const count = journeyAt(station.builtSteps, station.progress).index + 8;
+  useEffect(() => {
+    void api.setMilestonePlan(milestonePlan(snapshot.seed, count));
+  }, [snapshot.seed, count]);
+}
+
+/** The next place on the journey, with a bar showing how close the ship is. */
+export function NextStop({ snapshot, onOpen }: { snapshot: Snapshot; onOpen?: () => void }) {
+  const station = resolveStation(snapshot.seed, snapshot.buildPoints);
+  const journey = journeyAt(station.builtSteps, station.progress);
+  const nextIndex = journey.index + 1;
+  const percent = Math.min(99, Math.floor(journey.leg * 100));
+  const remaining = Math.max(0, milestonePoints(snapshot.seed, nextIndex) - snapshot.buildPoints);
+  const body = (
+    <>
+      <div className="build__row">
+        <span className="eyebrow">Next stop</span>
+        <span className="build__percent">{percent}%</span>
+      </div>
+      <strong className="next-stop__name">{placeTitle(destination(nextIndex).name)}</strong>
+      <div className="meter meter--journey" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label="Progress to the next stop">
+        <div className="meter__fill" style={{ width: `${percent}%` }} />
+      </div>
+      <p className="build__hint">About {formatMinutes(remaining)} of focus to go</p>
+    </>
+  );
+  return onOpen ? (
+    <button type="button" className="next-stop next-stop--button" onClick={onOpen} title="Open the logbook">
+      {body}
+    </button>
+  ) : (
+    <section className="next-stop" aria-label="Next stop">
+      {body}
     </section>
   );
 }

@@ -168,8 +168,13 @@ export function formatDistance(km: number): string {
 }
 
 /** Build steps spent getting to destination `index`: legs shorten as the ship speeds up. */
-function legLength(index: number): number {
+export function legLength(index: number): number {
   return index < 9 ? 10 : index < 15 ? 8 : index < 19 ? 7 : 6;
+}
+
+/** Which part of the universe destination `index` is in. */
+export function regionOf(index: number): string {
+  return index < 9 ? "the solar system" : index < 15 ? "nearby stars" : index < 19 ? "the Milky Way" : "intergalactic space";
 }
 
 export function destination(index: number): Planet {
@@ -221,7 +226,7 @@ export function journeyAt(builtSteps: number, progress = 0): JourneyState {
   const current = destination(index);
   const next = destination(index + 1);
   const fraction = travelled / legLength(index);
-  const region = index < 9 ? "the solar system" : index < 15 ? "nearby stars" : index < 19 ? "the Milky Way" : "intergalactic space";
+  const region = regionOf(index);
   const label = fraction < 0.65 ? `Passing ${current.name}` : `Heading for ${next.name}`;
   // Distances span from thousands of km to billions of light years, so the far legs ease
   // across them on a log scale; inside the solar system it's a plain blend.

@@ -3,6 +3,7 @@ const path = require("node:path");
 const {
   BrowserWindow,
   Menu,
+  Notification,
   Tray,
   app,
   ipcMain,
@@ -110,6 +111,7 @@ function main() {
       dataDir,
       getIdleSeconds: () => powerMonitor.getSystemIdleTime()
     });
+    kingdom.on("milestone", announceMilestone);
     kingdom.on("snapshot", (snapshot) => {
       for (const window of [mainWindow, popup]) {
         if (window && !window.isDestroyed()) {
@@ -254,6 +256,24 @@ function main() {
   });
 
   // ---- windows ------------------------------------------------------------------------
+
+  /** A Windows notification when the ship reaches a new place on its journey. */
+  function announceMilestone(entry) {
+    if (!kingdom.getSnapshot().settings.milestoneNotifications || !Notification.isSupported()) {
+      return;
+    }
+    const place = entry.name.charAt(0).toUpperCase() + entry.name.slice(1);
+    const notification = new Notification({
+      title: entry.announce || `Arrived at ${place}`,
+      body: entry.announce ? `Arrived at ${place}, ${entry.detail}.` : `${entry.detail}. Open the logbook to see how far you've come.`,
+      icon: path.join(ASSETS, "icon.png")
+    });
+    notification.on("click", () => {
+      showMain();
+      mainWindow?.webContents.send("kingdom:open-logbook");
+    });
+    notification.show();
+  }
 
   function showMain() {
     if (popup?.isVisible()) {
@@ -511,6 +531,34 @@ function main() {
         throw new Error("Invalid label");
       }
       return kingdom.setUpgradeFocus(pieceId, label?.toLowerCase());
+    });
+    const plainText = (value, max) => typeof value === "string" && value.length <= max && !/[\u0000-\u001f\u007f]/.test(value);
+    handle("kingdom:set-milestone-plan", (plan) => {
+      if (!Array.isArray(plan) || plan.length > 400) {
+        throw new Error("Invalid milestone plan");
+      }
+      const clean = plan.map((entry) => {
+        if (
+          !entry ||
+          typeof entry !== "object" ||
+          !(Number.isInteger(entry.index) && entry.index >= 0 && entry.index < 100000) ||
+          !(Number.isFinite(entry.points) && entry.points >= 0 && entry.points < 1e9) ||
+          !plainText(entry.name, 60) ||
+          entry.name.length === 0 ||
+          !plainText(entry.detail, 80) ||
+          (entry.announce !== undefined && !plainText(entry.announce, 80))
+        ) {
+          throw new Error("Invalid milestone");
+        }
+        return { index: entry.index, points: entry.points, name: entry.name, detail: entry.detail, announce: entry.announce };
+      });
+      return kingdom.setMilestonePlan(clean);
+    });
+    handle("kingdom:set-milestone-notifications", (enabled) => {
+      if (typeof enabled !== "boolean") {
+        throw new Error("Invalid value");
+      }
+      return kingdom.updateSettings({ milestoneNotifications: enabled });
     });
     handle("kingdom:clear-history", () => kingdom.clearHistory());
     handle("kingdom:open-main", () => showMain());

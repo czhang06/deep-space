@@ -8,6 +8,12 @@
 //
 // The station layout itself is derived in the renderer from (seed, buildPoints), so it never
 // reshuffles and the main process doesn't need to know about modules.
+//
+// Milestones (the places on the ship's journey) work the same way: the renderer works out how
+// many build points each destination needs and sends that plan here. The main process records
+// when each one is reached, so arrivals are dated and announced even with no window open.
+// Milestones passed before the plan arrived are backfilled with dates estimated from the daily
+// history.
 
 const STATE_VERSION = 2;
 const STREAK_BONUS_MINUTES = 25;
@@ -48,9 +54,12 @@ function createState({ seed = Math.floor(Math.random() * 2 ** 31), now = Date.no
     streak: { category: "neutral", minutes: 0 },
     days: {},
     rules: [],
-    settings: { openAtLogin: true, playAllowanceMinutes: 90 },
+    settings: { openAtLogin: true, playAllowanceMinutes: 90, milestoneNotifications: true },
     pausedUntil: null,
-    events: []
+    events: [],
+    // plan: [{ index, points, name, detail, announce? }] from the renderer
+    // reached: [{ index, at, approx? }]; at is null when it was reached before the daily records
+    milestones: { plan: [], reached: [] }
   };
 }
 
@@ -70,6 +79,10 @@ function reviveState(saved, now = Date.now()) {
     alienCounter: saved.alienCounter ?? rogueCounter ?? 0,
     rules: Array.isArray(saved.rules) ? saved.rules : [],
     days: saved.days ?? {},
+    milestones: {
+      plan: Array.isArray(saved.milestones?.plan) ? saved.milestones.plan : [],
+      reached: Array.isArray(saved.milestones?.reached) ? saved.milestones.reached : []
+    },
     events: Array.isArray(saved.events) ? saved.events.filter((event) => !/keep|castle|rogue|builders/i.test(event.text)) : []
   };
 }
@@ -242,6 +255,73 @@ function setUpgradeFocus(state, pieceId, label, now = Date.now()) {
   return state;
 }
 
+// ---- milestones ------------------------------------------------------------------------
+
+/** Noon (local time) on a day key, as a timestamp. */
+function dayNoon(key) {
+  return new Date(`${key}T12:00:00`).getTime();
+}
+
+/**
+ * Roughly when the ship had `points` build points, from the daily work history: points are
+ * spread over the recorded days in proportion to focused minutes. Returns null when that was
+ * before the oldest record.
+ */
+function estimateReachedAt(state, points, now = Date.now()) {
+  const keys = Object.keys(state.days).sort();
+  const work = keys.map((key) => state.days[key].work ?? 0);
+  const total = work.reduce((sum, minutes) => sum + minutes, 0);
+  if (total <= 0 || state.buildPoints <= 0) {
+    return points >= state.buildPoints - 1 ? now : null;
+  }
+  // Points per focused minute: between 1 and the streak bonus, or less while aliens slow things.
+  const rate = Math.min(STREAK_BONUS, state.buildPoints / total);
+  let cumulative = state.buildPoints - total * rate; // earned before the oldest record
+  if (points <= cumulative) {
+    return null;
+  }
+  for (let index = 0; index < keys.length; index += 1) {
+    cumulative += work[index] * rate;
+    if (cumulative >= points - 1e-6) {
+      return Math.min(now, dayNoon(keys[index]));
+    }
+  }
+  return now;
+}
+
+/** Takes a new milestone plan and backfills any milestones already passed (dated by estimate). */
+function setMilestonePlan(state, plan, now = Date.now()) {
+  state.milestones.plan = plan.map(({ index, points, name, detail, announce }) => ({ index, points, name, detail, announce }));
+  const known = new Set(state.milestones.reached.map((entry) => entry.index));
+  for (const entry of state.milestones.plan) {
+    if (entry.points <= state.buildPoints && !known.has(entry.index)) {
+      state.milestones.reached.push({ index: entry.index, at: estimateReachedAt(state, entry.points, now), approx: true });
+      known.add(entry.index);
+    }
+  }
+  state.milestones.reached.sort((a, b) => a.index - b.index);
+  return state;
+}
+
+/** Records milestones the ship has just reached; returns their plan entries (to announce). */
+function checkMilestones(state, now = Date.now()) {
+  const known = new Set(state.milestones.reached.map((entry) => entry.index));
+  const arrived = [];
+  for (const entry of state.milestones.plan) {
+    if (entry.points <= state.buildPoints && !known.has(entry.index)) {
+      state.milestones.reached.push({ index: entry.index, at: now });
+      known.add(entry.index);
+      arrived.push(entry);
+    }
+  }
+  if (arrived.length) {
+    state.milestones.reached.sort((a, b) => a.index - b.index);
+    const last = arrived[arrived.length - 1];
+    pushEvent(state, last.announce ? `${last.announce} Arrived at ${last.name}.` : `Arrived at ${last.name}.`, now);
+  }
+  return arrived;
+}
+
 function damageCount(state) {
   return Math.max(0, Math.ceil(state.repairDebt / DAMAGE_COST - 1e-9));
 }
@@ -251,6 +331,9 @@ function today(state, now = Date.now()) {
 }
 
 module.exports = {
+  checkMilestones,
+  estimateReachedAt,
+  setMilestonePlan,
   ALIEN_WORK_TO_EVICT,
   DAMAGE_COST,
   MAX_ALIENS,

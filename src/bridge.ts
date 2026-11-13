@@ -45,7 +45,8 @@ function previewApi(): KingdomApi {
     pausedUntil: null,
     tracking: "preview",
     rules: [{ id: "rule-1", targetType: "app", pattern: "discord", category: "neutral" }],
-    settings: { openAtLogin: true, playAllowanceMinutes: 90 },
+    settings: { openAtLogin: true, playAllowanceMinutes: 90, milestoneNotifications: true },
+    milestones: [],
     events: [
       { text: "Finished a hull segment.", at: Date.now() - 600000 },
       { text: "A new station came online. Focused work will grow it.", at: Date.now() - 86400000 }
@@ -97,6 +98,18 @@ function previewApi(): KingdomApi {
       upgradeLog.push({ type: "focus", pieceId, at: snapshot.upgradePoints });
       return publish({ mode: "upgrade", upgradeLog });
     },
+    // Preview: pretend each milestone was reached a little over a day per 500 points ago.
+    setMilestonePlan: (plan) =>
+      publish({
+        milestones: plan
+          .filter((entry) => entry.points <= snapshot.buildPoints)
+          .map((entry) => ({
+            index: entry.index,
+            at: entry.index === 0 ? null : Date.now() - (snapshot.buildPoints - entry.points) * 200000,
+            approx: true
+          }))
+      }),
+    setMilestoneNotifications: (enabled) => publish({ settings: { ...snapshot.settings, milestoneNotifications: enabled } }),
     clearHistory: () => publish({ today: { work: 0, play: 0, idle: 0, neutral: 0, playAllowance: snapshot.today.playAllowance, top: [] }, events: [] }),
     openMain: () => Promise.resolve(),
     hidePopup: () => Promise.resolve(),

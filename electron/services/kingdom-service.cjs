@@ -96,7 +96,13 @@ class KingdomService extends EventEmitter {
       });
     }
 
-    this.save(false);
+    // Places on the journey reached during this slice.
+    const arrived = sim.checkMilestones(this.state, now);
+    for (const entry of arrived) {
+      this.emit("milestone", entry);
+    }
+
+    this.save(arrived.length > 0);
     this.emitSnapshot();
   }
 
@@ -198,6 +204,13 @@ class KingdomService extends EventEmitter {
     return this.getSnapshot();
   }
 
+  setMilestonePlan(plan) {
+    sim.setMilestonePlan(this.state, plan);
+    this.save(true);
+    this.emitSnapshot();
+    return this.getSnapshot();
+  }
+
   updateSettings(patch) {
     this.state.settings = { ...this.state.settings, ...patch };
     this.save(true);
@@ -260,6 +273,7 @@ class KingdomService extends EventEmitter {
       tracking: process.platform !== "win32" ? "unsupported" : this.watcher.healthy ? "live" : "starting",
       rules: this.state.rules,
       settings: this.state.settings,
+      milestones: this.state.milestones.reached,
       events: this.state.events.slice(0, 5)
     };
   }
