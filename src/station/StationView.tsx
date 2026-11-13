@@ -3,9 +3,9 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { resolveStation, worldCenter, type PlacedPiece } from "./generator.ts";
-import { journeyAt, planetTexture, ringTexture, type Planet } from "./journey.ts";
+import { clusterTexture, galaxyTexture, journeyAt, nebulaTexture, planetTexture, ringTexture, type Planet } from "./journey.ts";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { createMaterials, releaseMaterials, setReflections } from "./materials.ts";
+import { SHIP_SPACE, createMaterials, releaseMaterials, setReflections } from "./materials.ts";
 import { Alien, AssemblyFrame, CELL, MaterialContext, PieceModel, Scorch, baseY, deckBase, pieceSize, pieceSpan } from "./pieces.tsx";
 import { createRng, hash01 } from "./rng.ts";
 import { MAX_LEVEL, resolveUpgrades, type UpgradeSegment } from "./upgrades.ts";
@@ -229,12 +229,58 @@ function glowTexture(kind: "sun" | "halo" = "halo"): THREE.Texture {
 
 function Sun({ size }: { size: number }) {
   const texture = useMemo(() => glowTexture("sun"), []);
+  if (size <= 0.01) {
+    return null;
+  }
   const position = SUN_DIRECTION.clone().multiplyScalar(600);
   return (
     <sprite position={position} scale={[size * 90, size * 90, 1]}>
       <spriteMaterial map={texture} blending={THREE.AdditiveBlending} depthWrite={false} transparent />
     </sprite>
   );
+}
+
+/** A star being passed: a white-hot disc inside a wide coloured corona. */
+function StarBody({ place, angle, distance }: { place: Planet; angle: number; distance: number }) {
+  const radius = place.size * 22;
+  const corona = useMemo(
+    () =>
+      new THREE.SpriteMaterial({ map: glowTexture("sun"), color: place.colors[1], transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+    [place]
+  );
+  const position: [number, number, number] = [Math.cos(angle) * distance, -distance * 0.2, Math.sin(angle) * distance];
+  return (
+    <group position={position}>
+      <mesh>
+        <sphereGeometry args={[radius, 32, 24]} />
+        <meshBasicMaterial color={place.colors[0]} toneMapped={false} />
+      </mesh>
+      <sprite material={corona} scale={[radius * 7, radius * 7, 1]} />
+      <sprite material={corona} scale={[radius * 16, radius * 16, 1]} />
+    </group>
+  );
+}
+
+/** A nebula, star cluster or galaxy: a large glowing image far behind everything else. */
+function FarBody({ place, angle, distance }: { place: Planet; angle: number; distance: number }) {
+  const material = useMemo(() => {
+    const map = place.style === "nebula" ? nebulaTexture(place) : place.style === "cluster" ? clusterTexture(place) : galaxyTexture(place);
+    return new THREE.SpriteMaterial({ map, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.95, rotation: place.tilt * 0.4 });
+  }, [place]);
+  const size = place.size * (place.style === "galaxy" ? 85 : 110);
+  const position: [number, number, number] = [Math.cos(angle) * distance * 1.3, -distance * 0.42, Math.sin(angle) * distance * 1.3];
+  return <sprite material={material} position={position} scale={[size, size, 1]} renderOrder={-2} />;
+}
+
+/** Whatever is being passed: a planet, a star, or something much further away. */
+function Destination({ place, angle, distance }: { place: Planet; angle: number; distance: number }) {
+  if (place.style === "star") {
+    return <StarBody place={place} angle={angle} distance={distance} />;
+  }
+  if (place.style === "nebula" || place.style === "galaxy" || place.style === "cluster") {
+    return <FarBody place={place} angle={angle} distance={distance} />;
+  }
+  return <PlanetBody planet={place} angle={angle} distance={distance} />;
 }
 
 function PlanetBody({ planet, angle, distance }: { planet: Planet; angle: number; distance: number }) {
@@ -300,7 +346,7 @@ function PlanetBody({ planet, angle, distance }: { planet: Planet; angle: number
   );
 }
 
-/** Space around the station: stars, the sun, and the planets the station is passing. */
+/** Space around the ship: stars, the sun, and whatever it is passing (planets, stars, nebulae, galaxies). */
 function Backdrop({ builtSteps, progress, compact }: { builtSteps: number; progress: number; compact: boolean }) {
   const journey = journeyAt(builtSteps, progress);
   const { scene } = useThree();
@@ -318,8 +364,8 @@ function Backdrop({ builtSteps, progress, compact }: { builtSteps: number; progr
     <>
       <Stars count={compact ? 1200 : 2600} />
       <Sun size={journey.current.sun.size + (journey.next.sun.size - journey.current.sun.size) * journey.leg} />
-      <PlanetBody planet={journey.current} angle={currentAngle} distance={distance} />
-      {journey.leg > 0.35 ? <PlanetBody planet={journey.next} angle={nextAngle} distance={distance * 1.15} /> : null}
+      <Destination place={journey.current} angle={currentAngle} distance={distance} />
+      {journey.leg > 0.35 ? <Destination place={journey.next} angle={nextAngle} distance={distance * 1.15} /> : null}
     </>
   );
 }
@@ -472,12 +518,18 @@ function Scene({ seed, buildPoints, mode, upgradePoints, upgradeLog, damage, ali
   }, [seed, builtSteps, planner, current, currentPiece, damage, aliens]);
 
   const float = useRef<THREE.Group>(null);
+  const ship = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
     if (float.current) {
       const t = clock.elapsedTime;
       float.current.position.y = Math.sin(t * 0.4) * 0.25;
       float.current.rotation.x = Math.sin(t * 0.21) * 0.025;
       float.current.rotation.z = Math.cos(t * 0.17) * 0.025;
+    }
+    // Hull plating is drawn in ship space, so it rides along with the drift.
+    if (ship.current) {
+      ship.current.updateWorldMatrix(true, false);
+      SHIP_SPACE.value.copy(ship.current.matrixWorld).invert();
     }
   });
 
@@ -521,7 +573,7 @@ function Scene({ seed, buildPoints, mode, upgradePoints, upgradeLog, damage, ali
       <Lights builtSteps={builtSteps} progress={progress} radius={layout.radius} />
       <CameraRig radius={layout.radius} compact={compact} />
       <group ref={float}>
-        <group position={[-layout.center[0], 0, -layout.center[1]]}>
+        <group ref={ship} position={[-layout.center[0], 0, -layout.center[1]]}>
           {layout.pieces.map(({ piece, y }) => (
             <PlacedModel key={piece.id} piece={piece} levels={piece.levels} tier={tierOf(piece.id)} y={y} onSelect={onSelect} />
           ))}

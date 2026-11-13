@@ -93,6 +93,95 @@ function refresh(name: MaterialName, material: THREE.MeshStandardMaterial): void
   material.envMapIntensity = reflective ? finish!.reflections : 1;
 }
 
+// ---- surface plating ------------------------------------------------------------------------
+// Big flat faces read as plain boxes, so the structural materials get procedural plating in the
+// shader: staggered armour panels of uneven sizes (some split into smaller plates), dark seams
+// between them, per-panel shade and roughness changes, a slight per-panel tilt so the light
+// catches them differently, and faint streaks. It's projected from the ship's own axes, so it
+// stays put while the ship drifts, and fades out where it would shimmer at a distance.
+
+/** Ship space for the plating: the inverse of the ship group's world matrix (set by the view). */
+export const SHIP_SPACE = { value: new THREE.Matrix4() };
+
+const PLATED = new Set<MaterialName>(["hull", "hullShade", "panel", "plate", "bone", "gunmetal"]);
+
+const PLATING_VERTEX = /* glsl */ `
+  vec4 shipPosition = vec4(transformed, 1.0);
+  vec3 shipNormal = objectNormal;
+  #ifdef USE_INSTANCING
+    shipPosition = instanceMatrix * shipPosition;
+    shipNormal = mat3(instanceMatrix) * shipNormal;
+  #endif
+  mat4 toShip = uShipSpace * modelMatrix;
+  vShipPosition = (toShip * shipPosition).xyz;
+  vShipNormal = normalize(mat3(toShip) * shipNormal);
+`;
+
+const PLATING_FUNCTIONS = /* glsl */ `
+  uniform float uPlatingScale;
+  varying vec3 vShipPosition;
+  varying vec3 vShipNormal;
+  float plateHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  // x: panel value, y: seam (1 on a seam), z: second panel value
+  vec3 plating(vec2 uv) {
+    uv *= vec2(1.5, 4.4) * uPlatingScale;
+    float row = floor(uv.y);
+    uv.x += plateHash(vec2(row, 7.0)) * 0.7;
+    vec2 cell = floor(uv);
+    vec2 f = fract(uv);
+    float h = plateHash(cell);
+    if (h > 0.6) {
+      vec2 sub = floor(f * 2.0);
+      cell = cell * 2.0 + sub + 31.0;
+      f = fract(f * 2.0);
+      h = plateHash(cell);
+    }
+    vec2 e = min(f, 1.0 - f);
+    float edge = min(e.x, e.y * 1.6);
+    float seam = 1.0 - smoothstep(0.02, 0.06, edge);
+    float blur = fwidth(uv.x) + fwidth(uv.y);
+    seam *= 1.0 - smoothstep(0.2, 0.6, blur);
+    return vec3(h, seam, plateHash(cell + 5.3));
+  }
+  vec3 shipPlating() {
+    vec3 n = abs(vShipNormal);
+    vec2 uv = n.x > n.y && n.x > n.z ? vShipPosition.zy : (n.y > n.z ? vShipPosition.xz : vShipPosition.xy);
+    return plating(uv);
+  }
+`;
+
+function addPlating(material: THREE.MeshStandardMaterial, scale: number): void {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uShipSpace = SHIP_SPACE;
+    shader.uniforms.uPlatingScale = { value: scale };
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nuniform mat4 uShipSpace;\nvarying vec3 vShipPosition;\nvarying vec3 vShipNormal;")
+      .replace("#include <project_vertex>", `#include <project_vertex>\n${PLATING_VERTEX}`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", `#include <common>\n${PLATING_FUNCTIONS}`)
+      .replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+        vec3 plate = shipPlating();
+        float shade = 1.0 + (plate.x - 0.5) * 0.14;
+        shade *= plate.z < 0.07 ? 0.78 : (plate.z > 0.95 ? 1.12 : 1.0);
+        float streak = plateHash(floor(vShipPosition.xz * vec2(0.8, 11.0))) - 0.5;
+        diffuseColor.rgb *= shade * (1.0 + streak * 0.05) * (1.0 - plate.y * 0.5);`
+      )
+      .replace(
+        "#include <roughnessmap_fragment>",
+        `#include <roughnessmap_fragment>
+        roughnessFactor = clamp(roughnessFactor + (plate.x - 0.5) * 0.22 + plate.y * 0.2, 0.05, 1.0);`
+      )
+      .replace(
+        "#include <normal_fragment_begin>",
+        `#include <normal_fragment_begin>
+        normal = normalize(normal + (vec3(plate.z, plate.x, fract(plate.z * 7.0)) - 0.5) * 0.09);`
+      );
+  };
+  material.customProgramCacheKey = () => `plating-${scale}`;
+}
+
 function makeMaterial(name: MaterialName, clippingPlanes: THREE.Plane[] = []) {
   const material = new THREE.MeshStandardMaterial({
     color: current[name],
@@ -107,6 +196,10 @@ function makeMaterial(name: MaterialName, clippingPlanes: THREE.Plane[] = []) {
   if (glow) {
     material.emissive = new THREE.Color(name === "window" ? current.windowGlow : current[name]);
     material.emissiveIntensity = glow;
+  }
+  if (PLATED.has(name)) {
+    // Trim and fittings get smaller plates than the hull.
+    addPlating(material, name === "gunmetal" || name === "panel" ? 1.8 : 1);
   }
   refresh(name, material);
   return material;

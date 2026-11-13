@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../bridge.ts";
 import { PIECES } from "../station/catalog.ts";
 import { resolveStation, stepLabel } from "../station/generator.ts";
-import { journeyAt } from "../station/journey.ts";
+import { formatDistance, formatSpeed, journeyAt } from "../station/journey.ts";
 import { resolveUpgrades } from "../station/upgrades.ts";
 import type { Category, Snapshot } from "../types.ts";
 
@@ -232,8 +232,11 @@ export function StationChips({ snapshot }: { snapshot: Snapshot }) {
       <li className="folk__level" title={`${modules} module${modules === 1 ? "" : "s"}; command core at level ${coreLevel}`}>
         Lv {coreLevel} {"·"} {modules} module{modules === 1 ? "" : "s"}
       </li>
-      <li title={journey.lap > 1 ? `Lap ${journey.lap} of the solar system` : undefined}>
-        <i className="dot tone-work" /> {journey.label}
+      <li title={`In ${journey.region}. The ship gets faster as it grows.`}>
+        <i className="dot tone-work" /> {journey.label} {"·"} {formatSpeed(journey.speed)}
+      </li>
+      <li className="folk__distance" title="Distance from Earth">
+        {formatDistance(journey.distance)} from Earth
       </li>
       {snapshot.aliens.length > 0 ? (
         <li className="folk__aliens">

@@ -132,6 +132,77 @@ function RodSet({ rods, radius, m }: { rods: Array<[Vec3, Vec3]>; radius: number
   return <instancedMesh ref={mesh} args={[UNIT_ROD, materials[m], rods.length]} castShadow />;
 }
 
+/** Hex-lattice offsets sorted by distance from the centre, shared by every clump. */
+const HEX: Array<[number, number, number]> = (() => {
+  const points: Array<[number, number, number]> = [];
+  for (let q = -4; q <= 4; q += 1) {
+    for (let r = -4; r <= 4; r += 1) {
+      const a = q + r / 2;
+      const b = (r * Math.sqrt(3)) / 2;
+      points.push([a, b, Math.hypot(a, b)]);
+    }
+  }
+  return points.sort((p1, p2) => p1[2] - p2[2] || p1[0] - p2[0] || p1[1] - p2[1]);
+})();
+
+/**
+ * A dense bundle of parallel rods: hex-packed into a rough round clump, with staggered
+ * lengths (the middle ones reach furthest) and starts, so it reads as a sheaf of needles
+ * rather than a row. Points along +x (forward), +y (up) or -y (down) from `p`.
+ */
+function clumpRods(p: Vec3, length: number, count: number, pitch: number, seed: number, axis: "x" | "y" | "-y" = "x"): Array<[Vec3, Vec3]> {
+  const rods: Array<[Vec3, Vec3]> = [];
+  const used = HEX.slice(0, count);
+  const outer = used[used.length - 1]?.[2] || 1;
+  used.forEach(([a, b, distance], index) => {
+    const reach = length * (0.55 + 0.45 * (1 - distance / (outer + 0.5))) * (0.82 + hash01(seed, index * 3 + 1) * 0.36);
+    const back = hash01(seed, index * 3 + 2) * length * 0.12;
+    const u = a * pitch;
+    const v = b * pitch;
+    if (axis === "x") {
+      rods.push([[p[0] - back, p[1] + v, p[2] + u], [p[0] + reach, p[1] + v, p[2] + u]]);
+    } else {
+      const sign = axis === "y" ? 1 : -1;
+      rods.push([[p[0] + u, p[1] - sign * back, p[2] + v], [p[0] + u, p[1] + sign * reach, p[2] + v]]);
+    }
+  });
+  return rods;
+}
+
+/** A rod clump with collars binding it near the root. */
+function RodClump({
+  p,
+  length,
+  count = 10,
+  pitch = 0.065,
+  radius = 0.02,
+  seed,
+  axis = "x",
+  m = "truss"
+}: {
+  p: Vec3;
+  length: number;
+  count?: number;
+  pitch?: number;
+  radius?: number;
+  seed: number;
+  axis?: "x" | "y" | "-y";
+  m?: MaterialName;
+}) {
+  const rods = useMemo(() => clumpRods(p, length, count, pitch, seed, axis), [p[0], p[1], p[2], length, count, pitch, seed, axis]);
+  const outer = (HEX[Math.max(0, count - 1)]?.[2] ?? 1) * pitch + radius + 0.02;
+  const rotation: Vec3 = axis === "x" ? [0, 0, Math.PI / 2] : [0, 0, 0];
+  const along = (t: number): Vec3 => (axis === "x" ? [p[0] + t, p[1], p[2]] : [p[0], p[1] + (axis === "y" ? t : -t), p[2]]);
+  return (
+    <group>
+      <RodSet rods={rods} radius={radius} m={m} />
+      {[length * 0.08, length * 0.35].map((t) => (
+        <P key={t} g={geo.cyl(outer, outer, 0.05, 6)} m="gunmetal" p={along(t)} r={rotation} />
+      ))}
+    </group>
+  );
+}
+
 /** Parallel pipe runs along local x with clamp brackets. */
 function Pipes({ length, y, z, count = 2, seed }: { length: number; y: number; z: number; count?: number; seed: number }) {
   const parts: ReactNode[] = [];
@@ -475,6 +546,15 @@ function Prow({ variant }: { variant: number }) {
   return (
     <group>
       <P g={geo.prism(blade, 1.0, 0.06)} m="bone" p={[0, 0.2, 0]} />
+      {/* stepped armour strakes, so the blade reads as layered plate rather than one wedge */}
+      {[0.88, 0.74, 0.58].map((k, index) => (
+        <P
+          key={k}
+          g={geo.prism(blade.map(([x, z]): [number, number] => [x * k + (1 - k) * 0.6, z * k]), 0.06, 0.02)}
+          m={index % 2 ? "hullShade" : "hull"}
+          p={[0, 0.73 + index * 0.045, 0]}
+        />
+      ))}
       <P g={geo.prism(ridge, 0.3, 0.05)} m="hull" p={[0, 0.82, 0]} />
       <P g={geo.prism(keel, 0.75, 0.05)} m="hull" p={[0, -0.62, 0]} />
       {/* brass seams and panel joints across the blade */}
@@ -556,39 +636,17 @@ function Wing({ variant, aft, rise }: { variant: number; aft: boolean; rise: num
 }
 
 /**
- * Forward needle banks carried along an escort: an outboard bank down the flank and a smaller
- * one on the dorsal line, both dense, evenly spaced and parallel to the ship, reaching past the bow.
+ * Forward needle clumps carried along an escort: one down the outboard flank and a smaller one
+ * on the dorsal line, both reaching past the bow.
  */
 function FlankNeedles({ variant }: { variant: number }) {
-  const rods = useMemo(() => {
-    const list: Array<[Vec3, Vec3]> = [];
-    const pitch = 0.075;
-    const bank = (columns: number, layers: number, z0: number, y0: number, from: number, to: number) => {
-      for (let layer = 0; layer < layers; layer += 1) {
-        for (let column = 0; column < columns; column += 1) {
-          const y = y0 + layer * pitch;
-          const z = z0 + column * pitch;
-          list.push([[from, y, z], [to, y, z]]);
-        }
-      }
-      // Rectangular frames binding the bank.
-      const top = y0 + (layers - 1) * pitch + 0.03;
-      const bottom = y0 - 0.03;
-      const near = z0 - 0.03;
-      const far = z0 + (columns - 1) * pitch + 0.03;
-      for (const fraction of [0.12, 0.55]) {
-        const x = from + (to - from) * fraction;
-        list.push([[x, bottom, near], [x, top, near]], [[x, bottom, far], [x, top, far]], [[x, top, near], [x, top, far]], [[x, bottom, near], [x, bottom, far]]);
-      }
-    };
-    const reach = 1.55 + hash01(variant, 7) * 0.45;
-    // Outboard flank bank: 2 deep, 4 high, just outside the hull.
-    bank(2, 4, 0.62, -0.12, -0.8, reach);
-    // Dorsal bank: 3 wide, 2 high, along the spine.
-    bank(3, 2, -0.075, 0.5, -0.5, reach - 0.35);
-    return list;
-  }, [variant]);
-  return <RodSet rods={rods} radius={0.014} m="truss" />;
+  const reach = 2.1 + hash01(variant, 7) * 0.5;
+  return (
+    <group>
+      <RodClump p={[-0.8, 0.0, 0.66]} length={reach} count={12} seed={variant} />
+      <RodClump p={[-0.5, 0.56, 0]} length={reach - 0.4} count={10} seed={variant + 9} />
+    </group>
+  );
 }
 
 /** A box-hulled hauler with stacked cargo containers and a forward cab. */
@@ -750,41 +808,19 @@ function Mast({ variant }: { variant: number }) {
 }
 
 /**
- * A needle array: a dense, regular bank of parallel rods pointing forward along the ship, on an
- * even grid, held by rectangular frames along their length and capped with a brass bar.
+ * A needle array: three dense clumps of parallel rods pointing forward along the ship, bound by
+ * collars near the root, the middle clump the largest.
  */
 function Needles({ variant }: { variant: number }) {
-  const rows = 6;
-  const layers = 3;
-  const pitch = 0.11;
-  const start = -0.45;
-  const length = 2.1 + (variant % 3) * 0.2;
-  const base = DECK_TOP + 0.32;
-  const rods = useMemo(() => {
-    const list: Array<[Vec3, Vec3]> = [];
-    const z0 = -((rows - 1) * pitch) / 2;
-    for (let layer = 0; layer < layers; layer += 1) {
-      for (let row = 0; row < rows; row += 1) {
-        const y = base + layer * pitch;
-        const z = z0 + row * pitch;
-        list.push([[start, y, z], [start + length, y, z]]);
-      }
-    }
-    // Rectangular frames binding the bank at even intervals.
-    const top = base + (layers - 1) * pitch + 0.04;
-    const bottom = base - 0.04;
-    const side = -z0 + 0.04;
-    for (const fraction of [0.15, 0.5, 0.85]) {
-      const x = start + length * fraction;
-      list.push([[x, bottom, -side], [x, top, -side]], [[x, bottom, side], [x, top, side]], [[x, top, -side], [x, top, side]], [[x, bottom, -side], [x, bottom, side]]);
-    }
-    return list;
-  }, [length]);
+  const length = 2.4 + (variant % 3) * 0.25;
+  const base = DECK_TOP + 0.42;
   return (
     <group>
       <P g={geo.chamferBox(0.8, 0.3, 0.75, 0.1)} m="gunmetal" p={[-0.1, DECK_TOP + 0.15, 0]} />
-      <P g={geo.box(0.06, layers * pitch + 0.08, rows * pitch + 0.08)} m="gold" p={[start + length, base + ((layers - 1) * pitch) / 2, 0]} />
-      <RodSet rods={rods} radius={0.017} m="hullShade" />
+      <P g={geo.box(0.5, 0.12, 0.62)} m="hullShade" p={[-0.25, DECK_TOP + 0.36, 0]} />
+      <RodClump p={[-0.45, base + 0.08, 0]} length={length} count={14} seed={variant} />
+      <RodClump p={[-0.4, base - 0.02, -0.24]} length={length * 0.8} count={10} seed={variant + 3} />
+      <RodClump p={[-0.4, base - 0.02, 0.24]} length={length * 0.8} count={10} seed={variant + 5} />
     </group>
   );
 }
@@ -962,26 +998,8 @@ function District({ levels, variant }: { levels: number; variant: number }) {
             ))
           )}
           {b.roof === 0 ? <P g={geo.cone(0.07, 0.6, 4)} m="hull" p={[0, b.h + 0.46, 0]} /> : null}
-          {b.roof === 1 ? (
-            <RodSet
-              rods={[-0.06, 0, 0.06].flatMap((z): Array<[Vec3, Vec3]> => [
-                [[-b.w / 2, b.h + 0.22, z], [b.w / 2 + 0.55, b.h + 0.22, z]],
-                [[-b.w / 2, b.h + 0.3, z], [b.w / 2 + 0.45, b.h + 0.3, z]]
-              ])}
-              radius={0.012}
-              m="truss"
-            />
-          ) : null}
-          {b.roof === 2 ? (
-            <RodSet
-              rods={[
-                [[0.05, b.h + 0.16, 0], [0.05, b.h + 0.9, 0]],
-                [[-0.1, b.h + 0.16, 0.05], [-0.1, b.h + 0.6, 0.05]]
-              ]}
-              radius={0.015}
-              m="truss"
-            />
-          ) : null}
+          {b.roof === 1 ? <RodClump p={[-b.w / 2, b.h + 0.26, 0]} length={b.w + 0.6} count={10} pitch={0.05} radius={0.015} seed={variant + index} /> : null}
+          {b.roof === 2 ? <RodClump p={[0, b.h + 0.16, 0]} length={0.8} count={9} pitch={0.045} radius={0.014} seed={variant + index} axis="y" /> : null}
         </group>
       ))}
       {bridge ? (
@@ -999,15 +1017,6 @@ function District({ levels, variant }: { levels: number; variant: number }) {
 function Pod({ variant }: { variant: number }) {
   const height = 1.5 + (variant % 3) * 0.75;
   const top = DECK_TOP + height;
-  const rods = useMemo(() => {
-    const list: Array<[Vec3, Vec3]> = [];
-    for (const y of [0.0, 0.08]) {
-      for (const z of [-0.12, -0.04, 0.04, 0.12]) {
-        list.push([[0.2, top + 0.42 + y, z], [1.9, top + 0.42 + y, z]]);
-      }
-    }
-    return list;
-  }, [top]);
   return (
     <group>
       {[-0.45, 0.35].map((x) => (
@@ -1033,7 +1042,7 @@ function Pod({ variant }: { variant: number }) {
         <BoxRow key={side} from={[-0.7, top + 0.08, side * 0.39]} to={[0.6, top + 0.08, side * 0.39]} count={9} size={[0.05, 0.07, 0.02]} m="window" gapEvery={4} />
       ))}
       <P g={geo.cyl(0.16, 0.16, 0.03, 8)} m="engine" p={[-0.87, top, 0]} r={[Math.PI / 8, 0, Math.PI / 2]} />
-      <RodSet rods={rods} radius={0.012} m="truss" />
+      <RodClump p={[0.0, top + 0.46, 0]} length={1.9} count={11} seed={variant} />
       <Blinker p={[-0.25, top + 0.62, 0]} phase={variant * 0.17} />
     </group>
   );
@@ -1074,7 +1083,7 @@ function Keel({ variant, top }: { variant: number; top: number }) {
     <group>
       {parts}
       <P g={geo.cone(0.18, 1.3, 4)} m="hull" p={[decks * 0.1, y - 0.62, 0]} r={[Math.PI, 0, 0]} />
-      <RodSet rods={[-0.1, 0, 0.1].map((z): [Vec3, Vec3] => [[0, lowest, z], [1.6 + (variant % 2) * 0.4, lowest, z]])} radius={0.014} m="truss" />
+      <RodClump p={[0, lowest, 0]} length={1.8 + (variant % 2) * 0.4} count={10} seed={variant} />
       <Blinker p={[decks * 0.1, y - 1.3, 0]} phase={variant * 0.29} />
     </group>
   );
