@@ -439,6 +439,9 @@ function main() {
   }
 
   function updateTray(snapshot) {
+    if (!tray) {
+      return; // snapshots can arrive during startup, before the tray icon exists
+    }
     const label = snapshot.paused ? "paused" : snapshot.now.category;
     tray.setToolTip(snapshot.paused ? `${APP_NAME}: tracking paused` : `${APP_NAME}: ${label}`);
 

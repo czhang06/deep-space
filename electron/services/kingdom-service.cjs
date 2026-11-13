@@ -219,7 +219,9 @@ class KingdomService extends EventEmitter {
   /** Facts about the app itself (version, update status) that the windows show. */
   setAppInfo(info) {
     this.appInfo = { ...this.appInfo, ...info };
-    this.emitSnapshot();
+    if (this.timer) {
+      this.emitSnapshot(); // before start(), the first tick sends it
+    }
   }
 
   updateSettings(patch) {
