@@ -14,6 +14,12 @@ export interface Weights {
   needles: number;
   spire: number;
   hangar: number;
+  /** city blocks on the main hull's side lanes and escort decks */
+  district: number;
+  /** stepped spires hanging under the hull and escorts */
+  keel: number;
+  /** small hulls raised on pylons */
+  pod: number;
   raise: number;
 }
 
@@ -50,6 +56,9 @@ const base: Weights = {
   needles: 1.3,
   spire: 1.1,
   hangar: 0.6,
+  district: 1.6,
+  keel: 0.9,
+  pod: 0.8,
   raise: 1.4
 };
 
@@ -62,7 +71,7 @@ export const DESIGNS: Design[] = [
     sternTaper: 0.1,
     mirrored: false,
     lopsided: 0.6,
-    weights: { ...base, superstructure: 0.6, spire: 0.4, needles: 3.6, mast: 1.6, turret: 0.4, battery: 0.5 },
+    weights: { ...base, superstructure: 1.8, spire: 0.8, needles: 3.2, mast: 1.4, turret: 0.4, battery: 0.5, district: 2.8, keel: 1.4, pod: 1.6 },
     escorts: ["lancer", "frigate"],
     // Dark battleship grey: gunmetal plating, darker trim, steel highlights, warm windows.
     palette: {

@@ -77,7 +77,10 @@ const FULL_UPGRADE: Record<PieceKind, number> = {
   turret: 30,
   mast: 24,
   needles: 20,
-  spire: 20
+  spire: 20,
+  district: 24,
+  keel: 20,
+  pod: 24
 };
 
 /** Share of the full upgrade each step costs (1 to 2, 2 to 3, 3 to 4, 4 to 5). */

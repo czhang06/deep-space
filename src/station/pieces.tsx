@@ -512,7 +512,7 @@ const ESCORT_SECTION: Array<[number, number]> = [
  * also gets a small seeded nudge in length, height and heading so rows never look stamped out.
  * Modelled with +x forward and +z outboard; struts clamp it to the ship inboard (toward -z).
  */
-function Wing({ variant, aft }: { variant: number; aft: boolean }) {
+function Wing({ variant, aft, rise }: { variant: number; aft: boolean; rise: number }) {
   const classes = activeDesign().escorts;
   const kind = classes[variant % classes.length];
   const length = 0.85 + hash01(variant, 1) * 0.25;
@@ -520,12 +520,15 @@ function Wing({ variant, aft }: { variant: number; aft: boolean }) {
   const yaw = (hash01(variant, 3) - 0.5) * 0.08;
   const struts = useMemo<Array<[Vec3, Vec3]>>(
     () => [
-      [[-0.65, 0, -0.3], [-0.65, -lift, -WING_HALF - 0.05]],
-      [[0.15, 0, -0.3], [0.15, -lift, -WING_HALF - 0.05]],
-      [[-0.65, 0.2, -0.3], [0.15, -0.05 - lift, -WING_HALF - 0.05]]
+      [[-0.65, 0, -0.3], [-0.65, -lift - rise, -WING_HALF - 0.05]],
+      [[0.15, 0, -0.3], [0.15, -lift - rise, -WING_HALF - 0.05]],
+      [[-0.65, 0.2, -0.3], [0.15, -0.05 - lift - rise, -WING_HALF - 0.05]]
     ],
-    [lift]
+    [lift, rise]
   );
+  // A raised or lowered escort hangs from a pylon down (or up) to the deck inboard of it.
+  const pylon =
+    Math.abs(rise) > 0.1 ? <P g={geo.box(0.5, Math.abs(rise) + 0.3, 0.16)} m="hullShade" p={[-0.25, -rise / 2, -WING_HALF + 0.05]} /> : null;
   let ship: ReactNode;
   switch (kind) {
     case "hauler":
@@ -547,6 +550,7 @@ function Wing({ variant, aft }: { variant: number; aft: boolean }) {
         {activeDesign().escortNeedles ? <FlankNeedles variant={variant} /> : null}
       </group>
       <RodSet rods={struts} radius={0.035} m="truss" />
+      {pylon}
     </group>
   );
 }
@@ -908,13 +912,182 @@ function Hangar({ variant }: { variant: number }) {
   );
 }
 
-/** Base height of a part: spires sit on top of their superstructure. */
-export function baseY(piece: { kind: PieceKind; parent: number }, pieces: Array<{ id: number; levels: number }>): number {
+/**
+ * A city block: a tight cluster of buildings of uneven heights on one deck lane, with lit
+ * window bands, rooftop spikes and forward rod bundles, and a skybridge between the two
+ * tallest. Each extra level makes the whole block taller.
+ */
+function District({ levels, variant }: { levels: number; variant: number }) {
+  const buildings = useMemo(() => {
+    const list: Array<{ x: number; z: number; w: number; d: number; h: number; roof: number; shade: boolean }> = [];
+    for (let column = 0; column < 3; column += 1) {
+      for (let row = 0; row < 2; row += 1) {
+        const seed = column * 2 + row;
+        if (hash01(variant, seed + 40) < 0.12) {
+          continue; // a gap: a small plaza
+        }
+        list.push({
+          x: -0.66 + column * 0.66 + (hash01(variant, seed + 20) - 0.5) * 0.08,
+          z: -0.27 + row * 0.54,
+          w: 0.42 + hash01(variant, seed + 30) * 0.18,
+          d: 0.36 + hash01(variant, seed + 50) * 0.12,
+          h: 0.35 + hash01(variant, seed + 10) * (0.5 + levels * 0.55) + (column === 1 ? 0.3 : 0),
+          roof: Math.floor(hash01(variant, seed + 60) * 4),
+          shade: hash01(variant, seed + 70) < 0.5
+        });
+      }
+    }
+    return list;
+  }, [levels, variant]);
+  const tallest = [...buildings].sort((a, b) => b.h - a.h);
+  const bridge = tallest.length > 1 ? [tallest[0], tallest[1]] : null;
+  return (
+    <group position={[0, DECK_TOP, 0]}>
+      <P g={geo.chamferBox(2.1, 0.14, 1.15, 0.06)} m="gunmetal" p={[0, 0.07, 0]} />
+      {buildings.map((b, index) => (
+        <group key={index} position={[b.x, 0.14, b.z]}>
+          <P g={geo.chamferBox(b.w, b.h, b.d, 0.06)} m={b.shade ? "hullShade" : "hull"} p={[0, b.h / 2, 0]} />
+          <P g={geo.chamferBox(b.w * 0.7, 0.16, b.d * 0.7, 0.04)} m="panel" p={[0, b.h + 0.08, 0]} />
+          {[-1, 1].map((side) =>
+            Array.from({ length: Math.max(1, Math.floor(b.h / 0.28)) }, (_, band) => (
+              <BoxRow
+                key={`${side}${band}`}
+                from={[-b.w / 2 + 0.07, 0.16 + band * 0.28, side * (b.d / 2 + 0.01)]}
+                to={[b.w / 2 - 0.07, 0.16 + band * 0.28, side * (b.d / 2 + 0.01)]}
+                count={Math.max(2, Math.round(b.w / 0.1))}
+                size={[0.04, 0.08, 0.02]}
+                m="window"
+                gapEvery={3}
+              />
+            ))
+          )}
+          {b.roof === 0 ? <P g={geo.cone(0.07, 0.6, 4)} m="hull" p={[0, b.h + 0.46, 0]} /> : null}
+          {b.roof === 1 ? (
+            <RodSet
+              rods={[-0.06, 0, 0.06].flatMap((z): Array<[Vec3, Vec3]> => [
+                [[-b.w / 2, b.h + 0.22, z], [b.w / 2 + 0.55, b.h + 0.22, z]],
+                [[-b.w / 2, b.h + 0.3, z], [b.w / 2 + 0.45, b.h + 0.3, z]]
+              ])}
+              radius={0.012}
+              m="truss"
+            />
+          ) : null}
+          {b.roof === 2 ? (
+            <RodSet
+              rods={[
+                [[0.05, b.h + 0.16, 0], [0.05, b.h + 0.9, 0]],
+                [[-0.1, b.h + 0.16, 0.05], [-0.1, b.h + 0.6, 0.05]]
+              ]}
+              radius={0.015}
+              m="truss"
+            />
+          ) : null}
+        </group>
+      ))}
+      {bridge ? (
+        <P
+          g={geo.box(Math.max(0.1, Math.abs(bridge[0].x - bridge[1].x)), 0.08, Math.max(0.1, Math.abs(bridge[0].z - bridge[1].z)) + 0.1)}
+          m="panel"
+          p={[(bridge[0].x + bridge[1].x) / 2, 0.14 + Math.min(bridge[0].h, bridge[1].h) * 0.7, (bridge[0].z + bridge[1].z) / 2]}
+        />
+      ) : null}
+    </group>
+  );
+}
+
+/** A sky hull: a small ship hull raised on two pylons, with a deckhouse and a forward needle bank. */
+function Pod({ variant }: { variant: number }) {
+  const height = 1.5 + (variant % 3) * 0.75;
+  const top = DECK_TOP + height;
+  const rods = useMemo(() => {
+    const list: Array<[Vec3, Vec3]> = [];
+    for (const y of [0.0, 0.08]) {
+      for (const z of [-0.12, -0.04, 0.04, 0.12]) {
+        list.push([[0.2, top + 0.42 + y, z], [1.9, top + 0.42 + y, z]]);
+      }
+    }
+    return list;
+  }, [top]);
+  return (
+    <group>
+      {[-0.45, 0.35].map((x) => (
+        <group key={x}>
+          <P g={geo.box(0.16, height, 0.22)} m="hullShade" p={[x, DECK_TOP + height / 2, 0]} />
+          <P g={geo.box(0.3, 0.08, 0.36)} m="gunmetal" p={[x, DECK_TOP + 0.04, 0]} />
+        </group>
+      ))}
+      <RodSet
+        rods={[
+          [[-0.45, DECK_TOP + 0.1, 0.1], [0.35, top - 0.2, 0.1]],
+          [[0.35, DECK_TOP + 0.1, -0.1], [-0.45, top - 0.2, -0.1]]
+        ]}
+        radius={0.02}
+        m="truss"
+      />
+      <group position={[-0.05, top, 0]} scale={[1, 0.75, 0.85]}>
+        <P g={geo.section(ESCORT_SECTION, 1.6, 0.04)} m="hull" />
+      </group>
+      <P g={geo.prism([[0.75, -0.36], [1.25, 0], [0.75, 0.36]], 0.36, 0.03)} m="bone" p={[0, top + 0.02, 0]} />
+      <P g={geo.chamferBox(0.6, 0.3, 0.42, 0.06)} m="hullShade" p={[-0.25, top + 0.42, 0]} />
+      {[-1, 1].map((side) => (
+        <BoxRow key={side} from={[-0.7, top + 0.08, side * 0.39]} to={[0.6, top + 0.08, side * 0.39]} count={9} size={[0.05, 0.07, 0.02]} m="window" gapEvery={4} />
+      ))}
+      <P g={geo.cyl(0.16, 0.16, 0.03, 8)} m="engine" p={[-0.87, top, 0]} r={[Math.PI / 8, 0, Math.PI / 2]} />
+      <RodSet rods={rods} radius={0.012} m="truss" />
+      <Blinker p={[-0.25, top + 0.62, 0]} phase={variant * 0.17} />
+    </group>
+  );
+}
+
+/**
+ * A keel spire: an inverted stepped tower hanging under the hull or an escort, lit by window
+ * bands, ending in a downward spike, with a forward rod bundle along its lowest deck.
+ */
+function Keel({ variant, top }: { variant: number; top: number }) {
+  const decks = 2 + (variant % 3);
+  const parts: ReactNode[] = [];
+  let y = top;
+  for (let deck = 0; deck < decks; deck += 1) {
+    const w = 1.7 - deck * 0.32;
+    const d = 1.2 - deck * 0.22;
+    const h = 0.42;
+    parts.push(
+      <group key={deck} position={[deck * 0.1, y - h / 2, 0]}>
+        <P g={geo.chamferBox(w, h - 0.03, d, 0.14)} m={deck % 2 ? "hullShade" : "hull"} />
+        {[-1, 1].map((side) => (
+          <BoxRow
+            key={side}
+            from={[-w / 2 + 0.15, -0.02, side * (d / 2 + 0.01)]}
+            to={[w / 2 - 0.15, -0.02, side * (d / 2 + 0.01)]}
+            count={Math.round(w / 0.14)}
+            size={[0.05, 0.12, 0.02]}
+            m="window"
+            gapEvery={3}
+          />
+        ))}
+      </group>
+    );
+    y -= h;
+  }
+  const lowest = y + 0.2;
+  return (
+    <group>
+      {parts}
+      <P g={geo.cone(0.18, 1.3, 4)} m="hull" p={[decks * 0.1, y - 0.62, 0]} r={[Math.PI, 0, 0]} />
+      <RodSet rods={[-0.1, 0, 0.1].map((z): [Vec3, Vec3] => [[0, lowest, z], [1.6 + (variant % 2) * 0.4, lowest, z]])} radius={0.014} m="truss" />
+      <Blinker p={[decks * 0.1, y - 1.3, 0]} phase={variant * 0.29} />
+    </group>
+  );
+}
+
+/** Base height of a part: spires sit on top of their superstructure; escort parts follow their escort's elevation. */
+export function baseY(piece: { kind: PieceKind; parent: number; elev?: number }, pieces: Array<{ id: number; levels: number }>): number {
+  const elev = piece.elev ?? 0;
   if (piece.kind === "spire") {
     const parent = pieces.find((candidate) => candidate.id === piece.parent);
-    return DECK_TOP + (parent?.levels ?? 1) * SUPER_DECK;
+    return elev + DECK_TOP + (parent?.levels ?? 1) * SUPER_DECK;
   }
-  return 0;
+  return elev;
 }
 
 /**
@@ -948,6 +1121,12 @@ export function pieceSize(kind: PieceKind, wingTier = 0, side = 0): [number, num
       return [2.8, 1.0];
     case "hangar":
       return [2.0, 1.7];
+    case "district":
+      return [2.2, 1.2];
+    case "pod":
+      return [2.6, 1.0];
+    case "keel":
+      return [1.9, 1.4];
     default:
       return [CELL, HULL_HALF * 2 + 0.3];
   }
@@ -965,7 +1144,10 @@ const DRESS: Record<PieceKind, (levels: number) => Dims> = {
   superstructure: (levels) => ({ w: 1.6, d: 2.12, bottom: DECK_TOP, top: DECK_TOP + levels * SUPER_DECK }),
   spire: () => ({ w: 0.7, d: 0.7, bottom: 0, top: 0.38, small: true }),
   turret: () => ({ w: 0.9, d: 0.9, bottom: DECK_TOP + 0.25, top: DECK_TOP + 0.71, small: true }),
-  hangar: () => ({ w: 1.6, d: 1.5, bottom: KEEL - 0.75, top: KEEL - 0.05, small: true })
+  hangar: () => ({ w: 1.6, d: 1.5, bottom: KEEL - 0.75, top: KEEL - 0.05, small: true }),
+  district: () => ({ w: 2.0, d: 1.1, bottom: DECK_TOP, top: DECK_TOP + 0.14, small: true }),
+  pod: () => ({ w: 0.6, d: 0.4, bottom: DECK_TOP, top: DECK_TOP + 0.1, small: true }),
+  keel: () => ({ w: 1.5, d: 1.0, bottom: KEEL - 0.4, top: KEEL - 0.05, small: true })
 };
 
 export function PieceModel({
@@ -975,7 +1157,8 @@ export function PieceModel({
   variant,
   wingTier = 0,
   side = 0,
-  aft = false
+  aft = false,
+  rise = 0
 }: {
   kind: PieceKind;
   levels: number;
@@ -988,11 +1171,13 @@ export function PieceModel({
   side?: number;
   /** a wing section at the stern gets its own engine */
   aft?: boolean;
+  /** escorts: height above the part inboard of it */
+  rise?: number;
 }) {
   let model: ReactNode;
   switch (kind) {
     case "wing":
-      model = <Wing variant={variant} aft={aft} />;
+      model = <Wing variant={variant} aft={aft} rise={rise} />;
       break;
     case "mast":
       model = <Mast variant={variant} />;
@@ -1024,6 +1209,16 @@ export function PieceModel({
     case "hangar":
       model = <Hangar variant={variant} />;
       break;
+    case "district":
+      model = <District levels={levels} variant={variant} />;
+      break;
+    case "pod":
+      model = <Pod variant={variant} />;
+      break;
+    case "keel":
+      // Under an escort it hangs from the escort's belly; under the spine, from the keel.
+      model = <Keel variant={variant} top={wingTier > 0 ? -0.36 : KEEL + 0.05} />;
+      break;
     default:
       model = <Hull variant={variant} />;
   }
@@ -1038,7 +1233,7 @@ export function PieceModel({
   }
   // Escort tiers step down a little per tier; parts on an escort's deck sit on that lower deck
   // and are slimmed to fit its width. Port-side parts are mirrored so "outboard" stays outboard.
-  const onDeck = kind !== "wing";
+  const onDeck = kind !== "wing" && kind !== "keel";
   const drop = (onDeck ? ESCORT_TOP - DECK_TOP : 0) - 0.15 * (wingTier - 1);
   const slim: Vec3 = onDeck ? [1, 1, 0.62] : [1, 1, 1];
   if (side !== 0) {
@@ -1086,6 +1281,12 @@ export function pieceSpan(kind: PieceKind, levels: number): [number, number] {
       return [-0.4, 0.6];
     case "hangar":
       return [KEEL - 0.85, KEEL];
+    case "district":
+      return [DECK_TOP, DECK_TOP + 1.2 + levels * 0.55];
+    case "pod":
+      return [DECK_TOP, DECK_TOP + 3.5];
+    case "keel":
+      return [KEEL - 3.4, KEEL];
     default:
       return [KEEL - 0.3, DECK_TOP + 0.3];
   }
@@ -1098,6 +1299,9 @@ export function deckBase(kind: PieceKind, level: number): number {
   }
   if (kind === "superstructure") {
     return DECK_TOP + (level - 1) * SUPER_DECK;
+  }
+  if (kind === "district") {
+    return DECK_TOP;
   }
   return 0;
 }

@@ -10,6 +10,8 @@
 // Grid: x = cells along the spine (bow at +x). The spine is tier 0 and spans z -1..1; escort
 // tier t sits at z = side * (1 + t), or on both sides for a mirrored pair (side 0).
 // layer 0 = hull level, 1 = on deck, 2 = on top of a superstructure, -1 = under the keel.
+// The spine's deck has a centre position (z 0) and two side lanes (z -1 and 1); a segment uses
+// either the centre or its lanes. Escorts carry an elevation, and everything on them inherits it.
 
 import { PIECES, RAISE_COST, costScale, type PieceKind } from "./catalog.ts";
 import { activeDesign, type Design } from "./designs.ts";
@@ -22,6 +24,9 @@ export const DZ = [0, 1, 0, -1] as const;
 export const SEGMENT_LENGTH = 2.4;
 export const WING_WIDTH = 1.4;
 export const SPINE_WIDTH = 3.0;
+/** World z of the spine's side lanes, and the height of one escort elevation step. */
+export const LANE_OFFSET = 0.85;
+export const ELEVATION_STEP = 0.9;
 
 export interface PlacedPiece {
   id: number;
@@ -45,6 +50,12 @@ export interface PlacedPiece {
   baseLevels: number;
   /** stable per-piece variation */
   variant: number;
+  /** world height offset (escorts step up and down; their deck parts follow) */
+  elev: number;
+  /** escorts: how far above the part inboard of it this one sits (for struts and pylons) */
+  rise: number;
+  /** spine deck lane: -1 port, 1 starboard, 0 centre */
+  lane: number;
 }
 
 export type PlanStep =
@@ -58,10 +69,15 @@ interface Slot {
   side: number;
   pieceId: number;
   kind: "core" | "hull" | "wing" | "battery";
-  dorsal: "none" | "super" | "turret" | "tower" | "mast" | "needles";
+  dorsal: "none" | "super" | "turret" | "tower" | "mast" | "needles" | "district" | "pod" | "lanes";
   superId: number;
   spire: boolean;
   hangar: boolean;
+  elev: number;
+  /** spine side lanes in use: [port, starboard] */
+  lanes: [boolean, boolean];
+  /** something hangs underneath already */
+  under: boolean;
 }
 
 /** Kept for older callers: rotates a cell inside a w x d footprint by quarter turns. */
@@ -89,7 +105,7 @@ const span = (x: number, w: number, z0: number, z1: number) => {
 };
 
 const key = (x: number, tier: number, side: number) => `${x},${tier},${side}`;
-const TALL = new Set(["super", "mast", "tower"]);
+const TALL = new Set(["super", "mast", "tower", "lanes"]);
 
 export class StationPlanner {
   readonly seed: number;
@@ -114,7 +130,7 @@ export class StationPlanner {
     this.favoured = seed % 2 === 0 ? 1 : -1;
     const core = this.add("core", 0, -1, 2, 3, 0, 0, 0, -1);
     for (const x of [0, 1]) {
-      this.slots.set(key(x, 0, 0), { x, tier: 0, side: 0, pieceId: core.id, kind: "core", dorsal: "tower", superId: -1, spire: false, hangar: false });
+      this.slots.set(key(x, 0, 0), { x, tier: 0, side: 0, pieceId: core.id, kind: "core", dorsal: "tower", superId: -1, spire: false, hangar: false, elev: 0, lanes: [true, true], under: true });
     }
     this.steps.push({ type: "place", index: 0, piece: core, cost: 0, total: 0 });
   }
@@ -249,9 +265,13 @@ export class StationPlanner {
     const preferEscorts = (items: Slot[]) =>
       pickWeighted(rng, items, (slot) => (slot.tier > 0 ? 4 : slot.x <= this.front - 1 ? 0.1 : 1.5)) ?? items[0];
     const raiseTargets = this.pieces.filter((piece) => {
-      const cap = piece.kind === "core" ? PIECES.core.maxLevels : Math.min(PIECES.superstructure.maxLevels, 2 + Math.floor(index / 14));
-      return (piece.kind === "core" || piece.kind === "superstructure") && this.plannedLevels[piece.id] < cap;
+      const cap = piece.kind === "core" ? PIECES.core.maxLevels : Math.min(PIECES[piece.kind].maxLevels, 2 + Math.floor(index / 14));
+      return (piece.kind === "core" || piece.kind === "superstructure" || piece.kind === "district") && this.plannedLevels[piece.id] < cap;
     });
+    // City blocks and sky hulls: a free side lane on a spine segment, or a free escort deck.
+    const laneFree = (slot: Slot) => slot.tier === 0 && slot.kind === "hull" && (slot.dorsal === "none" || slot.dorsal === "lanes") && (!slot.lanes[0] || !slot.lanes[1]);
+    const canBlock = (slot: Slot) => laneFree(slot) || (slot.tier > 0 && deckFree(slot));
+    const canKeel = (slot: Slot) => (slot.tier > 0 ? !slot.under : slot.kind === "hull" && !slot.hangar && !slot.under);
     const canSuper = (slot: Slot) => deckFree(slot) && behindBow(slot) && clearBehind(slot) && slot.kind !== "battery";
     const canMast = (slot: Slot) => deckFree(slot) && clearBehind(slot);
     const canNeedles = (slot: Slot) => deckFree(slot) && clearAhead(slot);
@@ -267,13 +287,19 @@ export class StationPlanner {
       { kind: "mast", weight: all.some(canMast) ? weights.mast : 0 },
       { kind: "needles", weight: all.some(canNeedles) ? weights.needles : 0 },
       { kind: "spire", weight: all.some((slot) => slot.dorsal === "super" && !slot.spire) ? weights.spire : 0 },
-      { kind: "hangar", weight: all.some((slot) => slot.tier === 0 && !slot.hangar && slot.x > 1) ? weights.hangar : 0 },
+      { kind: "hangar", weight: all.some((slot) => slot.tier === 0 && !slot.hangar && !slot.under && slot.x > 1) ? weights.hangar : 0 },
+      { kind: "district", weight: all.some(canBlock) ? weights.district : 0 },
+      { kind: "pod", weight: all.some(canBlock) ? weights.pod : 0 },
+      { kind: "keel", weight: all.some(canKeel) ? weights.keel : 0 },
       { kind: "raise", weight: raiseTargets.length ? weights.raise : 0 }
     ];
     const choice = pickWeighted(rng, options, (option) => option.weight)?.kind ?? "hull";
 
-    const onDeck = (kind: PieceKind, slot: Slot, layer: number, parent: number) =>
-      this.add(kind, slot.x, slot.tier ? slot.side * (1 + slot.tier) : 0, 1, 1, layer, slot.tier, slot.side, parent);
+    const onDeck = (kind: PieceKind, slot: Slot, layer: number, parent: number) => {
+      const piece = this.add(kind, slot.x, slot.tier ? slot.side * (1 + slot.tier) : 0, 1, 1, layer, slot.tier, slot.side, parent);
+      piece.elev = slot.elev;
+      return piece;
+    };
 
     switch (choice) {
       case "battery": {
@@ -295,6 +321,14 @@ export class StationPlanner {
           }) ?? choices[0];
         const inner = this.slotAt(target.x, target.tier - 1, target.side)!;
         const piece = this.add("wing", target.x, target.side * (1 + target.tier), 1, 1, 0, target.tier, target.side, inner.pieceId);
+        // Escorts terrace: often level with a neighbour along the flank, otherwise a deck above
+        // or below the one inboard of them, within two decks of the main hull.
+        const neighbour = this.slotAt(target.x - 1, target.tier, target.side) ?? this.slotAt(target.x + 1, target.tier, target.side);
+        const steps = [-1, 0, 1, 1][Math.floor(rng() * 4)];
+        const elev =
+          neighbour && rng() < 0.5 ? neighbour.elev : Math.max(-2 * ELEVATION_STEP, Math.min(2 * ELEVATION_STEP, inner.elev + steps * ELEVATION_STEP));
+        piece.elev = elev;
+        piece.rise = elev - inner.elev;
         this.slots.set(key(target.x, target.tier, target.side), {
           x: target.x,
           tier: target.tier,
@@ -304,7 +338,10 @@ export class StationPlanner {
           dorsal: "none",
           superId: -1,
           spire: false,
-          hangar: false
+          hangar: false,
+          elev,
+          lanes: [true, true],
+          under: false
         });
         return place(piece);
       }
@@ -332,9 +369,35 @@ export class StationPlanner {
         slot.spire = true;
         return place(onDeck("spire", slot, 2, slot.superId));
       }
-      case "hangar": {
-        const slot = pick(all.filter((candidate) => candidate.tier === 0 && !candidate.hangar && candidate.x > 1));
+      case "district":
+      case "pod": {
+        // Mostly on the main hull's lanes, so the spine fills with a skyline.
+        const candidates = all.filter(canBlock);
+        const slot = pickWeighted(rng, candidates, (candidate) => (candidate.tier === 0 ? 3 : 1)) ?? candidates[0];
+        if (slot.tier === 0) {
+          const options = [0, 1].filter((index) => !slot.lanes[index]);
+          const index = options[Math.floor(rng() * options.length)];
+          slot.lanes[index] = true;
+          slot.dorsal = "lanes";
+          const lane = index === 0 ? -1 : 1;
+          const piece = this.add(choice, slot.x, lane, 1, 1, 1, 0, 0, slot.pieceId);
+          piece.lane = lane;
+          return place(piece);
+        }
+        slot.dorsal = choice;
+        return place(onDeck(choice, slot, 1, slot.pieceId));
+      }
+      case "keel": {
+        const candidates = all.filter(canKeel);
+        const slot = pickWeighted(rng, candidates, (candidate) => (candidate.tier === 0 ? 1.5 : 1)) ?? candidates[0];
+        slot.under = true;
         slot.hangar = true;
+        return place(onDeck("keel", slot, -1, slot.pieceId));
+      }
+      case "hangar": {
+        const slot = pick(all.filter((candidate) => candidate.tier === 0 && !candidate.hangar && !candidate.under && candidate.x > 1));
+        slot.hangar = true;
+        slot.under = true;
         return place(this.add("hangar", slot.x, 0, 1, 1, -1, 0, 0, slot.pieceId));
       }
       case "raise": {
@@ -351,7 +414,7 @@ export class StationPlanner {
         const behind = this.slotAt(this.front, 0, 0)!;
         this.front += 1;
         const piece = this.add("hull", this.front, -1, 1, 3, 0, 0, 0, behind.pieceId);
-        this.slots.set(key(this.front, 0, 0), { x: this.front, tier: 0, side: 0, pieceId: piece.id, kind: "hull", dorsal: "none", superId: -1, spire: false, hangar: false });
+        this.slots.set(key(this.front, 0, 0), { x: this.front, tier: 0, side: 0, pieceId: piece.id, kind: "hull", dorsal: "none", superId: -1, spire: false, hangar: false, elev: 0, lanes: [false, false], under: false });
         return place(piece);
       }
     }
@@ -389,7 +452,10 @@ export class StationPlanner {
       side,
       parent,
       baseLevels: PIECES[kind].levels,
-      variant: Math.floor(this.rng() * 1000)
+      variant: Math.floor(this.rng() * 1000),
+      elev: 0,
+      rise: 0,
+      lane: 0
     };
     this.pieces.push(piece);
     this.plannedLevels[piece.id] = piece.baseLevels;
@@ -490,5 +556,8 @@ export function tierCenter(tier: number): number {
 /** Where a part sits in the world, on the ship's own axes: [x along the spine, z across]. */
 export function worldCenter(piece: PlacedPiece): [number, number] {
   const x = (piece.x + (piece.w - 1) / 2) * SEGMENT_LENGTH;
+  if (piece.lane) {
+    return [x, piece.lane * LANE_OFFSET];
+  }
   return [x, piece.tier > 0 && piece.side !== 0 ? piece.side * tierCenter(piece.tier) : 0];
 }

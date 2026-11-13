@@ -74,7 +74,7 @@ function PlacedModel({
   return (
     <group position={[x, y, z]} {...handlers}>
       <group scale={scale}>
-        <PieceModel kind={piece.kind} levels={levels} tier={tier} variant={piece.variant} wingTier={piece.tier} side={piece.side} aft={piece.kind === "wing" && piece.x === 0} />
+        <PieceModel kind={piece.kind} levels={levels} tier={tier} variant={piece.variant} wingTier={piece.tier} side={piece.side} aft={piece.kind === "wing" && piece.x === 0} rise={piece.rise} />
       </group>
     </group>
   );
@@ -147,7 +147,7 @@ function Construction({
     <group ref={group}>
       <MaterialContext.Provider value={materials}>
         <group position={[x, y, z]}>
-          <PieceModel kind={piece.kind} levels={levels} tier={tier} variant={piece.variant} wingTier={piece.tier} side={piece.side} aft={piece.kind === "wing" && piece.x === 0} />
+          <PieceModel kind={piece.kind} levels={levels} tier={tier} variant={piece.variant} wingTier={piece.tier} side={piece.side} aft={piece.kind === "wing" && piece.x === 0} rise={piece.rise} />
         </group>
       </MaterialContext.Provider>
       <group position={[x, y, z]} visible={showFrame}>
@@ -452,7 +452,9 @@ function Scene({ seed, buildPoints, mode, upgradePoints, upgradeLog, damage, ali
       const side = piece.side || (hash01(seed, index * 29 + 11) < 0.5 ? -1 : 1);
       const [cx, cz] = pieceCenter(piece);
       const [, width] = pieceSize(piece.kind, piece.tier, piece.side);
-      const height = piece.kind === "superstructure" || piece.kind === "turret" ? 1.1 : piece.kind === "hangar" ? -1.4 : 0.1;
+      const height =
+        piece.elev +
+        (piece.kind === "superstructure" || piece.kind === "turret" || piece.kind === "district" ? 1.1 : piece.kind === "hangar" || piece.kind === "keel" ? -1.4 : 0.1);
       return {
         key: `${piece.id}-${index}`,
         position: [cx + (hash01(seed, index * 7 + 3) - 0.5) * 1.2, height, cz + side * (width / 2 - 0.25)] as [number, number, number],
