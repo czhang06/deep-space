@@ -1,7 +1,7 @@
 {
   "name": "tiny-kingdom",
   "productName": "Deep Space",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "private": true,
   "description": "A little space station in your system tray that grows while you focus.",
   "author": "czhang06",
@@ -27,7 +27,7 @@
         "provider": "github",
         "owner": "czhang06",
         "repo": "deep-space",
-        "releaseType": "release"
+        "releaseType": "draft"
       }
     ],
     "copyright": "Copyright (c) 2026 czhang06",
