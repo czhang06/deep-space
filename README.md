@@ -33,7 +33,7 @@ The ship is generated from a fixed seed and a design preset (`src/station/design
 
 ## Updates
 
-The installed app checks this repo's GitHub releases every few hours and installs new versions when it next restarts (Settings > Updates, or the tray menu). To publish a release, bump the version in `package.json`, then run `npm run release` with a GitHub token that can write releases in `GH_TOKEN`; electron-builder uploads the installer and `latest.yml`. `npm run dist` builds locally without publishing.
+The installed app checks this repo's GitHub releases every few hours and installs new versions when it next restarts (Settings > Updates, or the tray menu). To publish a release: bump the version in `package.json`, commit, set `GH_TOKEN` to a GitHub token that can write this repo's contents, and run `npm run release`. It checks, tests and builds, tags the commit `v<version>` and pushes the tag (GitHub only publishes releases for existing tags), then electron-builder uploads the installer and `latest.yml`. `npm run dist` builds locally without publishing.
 
 ## Development
 
