@@ -322,11 +322,16 @@ export class StationPlanner {
         const inner = this.slotAt(target.x, target.tier - 1, target.side)!;
         const piece = this.add("wing", target.x, target.side * (1 + target.tier), 1, 1, 0, target.tier, target.side, inner.pieceId);
         // Escorts terrace: often level with a neighbour along the flank, otherwise a deck above
-        // or below the one inboard of them, within two decks of the main hull.
+        // or below the one inboard of them, within two decks of the main hull. Both flanks share
+        // one height profile: whichever side docks at this spot first sets its height and the
+        // other side matches it, so the ship stays level while the escorts on each side (their
+        // classes, deck structures, needle banks) still differ.
         const neighbour = this.slotAt(target.x - 1, target.tier, target.side) ?? this.slotAt(target.x + 1, target.tier, target.side);
         const steps = [-1, 0, 1, 1][Math.floor(rng() * 4)];
-        const elev =
+        const mirror = target.side === 0 ? undefined : this.slots.get(key(target.x, target.tier, -target.side));
+        const terraced =
           neighbour && rng() < 0.5 ? neighbour.elev : Math.max(-2 * ELEVATION_STEP, Math.min(2 * ELEVATION_STEP, inner.elev + steps * ELEVATION_STEP));
+        const elev = mirror ? mirror.elev : terraced;
         piece.elev = elev;
         piece.rise = elev - inner.elev;
         this.slots.set(key(target.x, target.tier, target.side), {

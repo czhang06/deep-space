@@ -5,7 +5,8 @@ import * as THREE from "three";
 import { resolveStation, worldCenter, type PlacedPiece } from "./generator.ts";
 import { clusterTexture, galaxyTexture, journeyAt, nebulaTexture, planetTexture, ringTexture, spikeTexture, starTexture, type Planet } from "./journey.ts";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { SHIP_SPACE, createMaterials, releaseMaterials, setReflections } from "./materials.ts";
+import { MATERIALS, SHIP_SPACE, createMaterials, releaseMaterials, setReflections } from "./materials.ts";
+import { SpaceDust } from "./motion.tsx";
 import { Alien, AssemblyFrame, CELL, MaterialContext, PieceModel, Scorch, baseY, deckBase, pieceSize, pieceSpan } from "./pieces.tsx";
 import { createRng, hash01 } from "./rng.ts";
 import { MAX_LEVEL, resolveUpgrades, type UpgradeSegment } from "./upgrades.ts";
@@ -27,6 +28,8 @@ export interface StationViewProps {
 
 /** Preview knob (?still): hold the camera still, for side-by-side comparisons. */
 const STILL = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("still");
+/** Preview knob (?nomotion): no dust, banking or engine flicker, for before/after comparisons. */
+const NO_MOTION = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("nomotion");
 
 // The sun sits over the camera's starting shoulder, so the side you first see is lit and the
 // planet ahead (towards -x, -z) shows a mostly lit face.
@@ -536,12 +539,17 @@ function Scene({ seed, buildPoints, mode, upgradePoints, upgradeLog, damage, ali
   const float = useRef<THREE.Group>(null);
   const ship = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
-    if (float.current) {
-      const t = clock.elapsedTime;
-      float.current.position.y = Math.sin(t * 0.4) * 0.25;
-      float.current.rotation.x = Math.sin(t * 0.21) * 0.025;
-      float.current.rotation.z = Math.cos(t * 0.17) * 0.025;
+    const t = clock.elapsedTime;
+    if (float.current && !NO_MOTION) {
+      // A slow weave as if steering, banking into each turn (roll about the long x axis follows
+      // the rate of turn), with a light bob and pitch: flying, not hanging.
+      float.current.position.y = Math.sin(t * 0.4) * 0.22;
+      float.current.rotation.y = Math.sin(t * 0.11) * 0.04;
+      float.current.rotation.x = -Math.cos(t * 0.11) * 0.07;
+      float.current.rotation.z = Math.cos(t * 0.17) * 0.015;
     }
+    // Engine glows (main drives and every escort) throb a little, like a running drive.
+    MATERIALS.engine.emissiveIntensity = 1.5 * (0.9 + Math.sin(t * 13) * 0.06 + Math.sin(t * 5.1) * 0.05);
     // Hull plating is drawn in ship space, so it rides along with the drift.
     if (ship.current) {
       ship.current.updateWorldMatrix(true, false);
@@ -586,6 +594,7 @@ function Scene({ seed, buildPoints, mode, upgradePoints, upgradeLog, damage, ali
   return (
     <>
       <Backdrop builtSteps={builtSteps} progress={progress} compact={compact} />
+      {NO_MOTION ? null : <SpaceDust radius={layout.radius} speedC={journeyAt(builtSteps, progress).speed} compact={compact} />}
       <Lights builtSteps={builtSteps} progress={progress} radius={layout.radius} />
       <CameraRig radius={layout.radius} compact={compact} />
       <group ref={float}>

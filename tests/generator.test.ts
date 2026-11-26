@@ -144,3 +144,22 @@ test("build points map onto finished parts plus one in progress", () => {
   assert.ok(later.progress >= 0 && later.progress < 1);
   assert.ok(later.current && later.current.total > 500);
 });
+
+test("both flanks share one height profile", () => {
+  for (const seed of [3, 11, 29, 20261111]) {
+    const planner = new StationPlanner(seed);
+    planner.ensureSteps(300);
+    const { pieces } = resolveStation(seed, planner.lastTotal());
+    const heights = new Map<string, number>();
+    for (const piece of pieces.filter((candidate) => candidate.kind === "wing" && candidate.side !== 0)) {
+      heights.set(`${piece.x},${piece.tier},${piece.side}`, piece.elev);
+    }
+    for (const [cell, elev] of heights) {
+      const [x, tier, side] = cell.split(",").map(Number);
+      const other = heights.get(`${x},${tier},${-side}`);
+      if (other !== undefined) {
+        assert.equal(other, elev, `seed ${seed}: escorts at x ${x}, tier ${tier} sit at different heights`);
+      }
+    }
+  }
+});

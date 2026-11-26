@@ -5,6 +5,7 @@ import type { PieceKind } from "./catalog.ts";
 import { activeDesign } from "./designs.ts";
 import { WING_WIDTH, tierCenter } from "./generator.ts";
 import { MATERIALS, geo, type MaterialName, type MaterialSet } from "./materials.ts";
+import { Plume } from "./motion.tsx";
 import { hash01 } from "./rng.ts";
 
 // A gothic battleship: a dark iron hull with rows of warm windows, a pale armoured prow,
@@ -507,6 +508,9 @@ function Engines({ variant }: { variant: number }) {
           <P g={geo.cyl(0.42, 0.34, 0.6, 8)} m="gunmetal" r={[Math.PI / 8, 0, Math.PI / 2]} />
           <P g={geo.cyl(0.46, 0.46, 0.08, 8)} m="gold" p={[0.22, 0, 0]} r={[Math.PI / 8, 0, Math.PI / 2]} />
           <P g={geo.cyl(0.3, 0.3, 0.04, 8)} m="engine" p={[-0.31, 0, 0]} r={[Math.PI / 8, 0, Math.PI / 2]} />
+          <group position={[-0.33, 0, 0]}>
+            <Plume phase={z * 3.1 + y * 5.7} scale={z === 0 ? 0.8 : 1} />
+          </group>
         </group>
       ))}
       {[-1, 1].map((side) => (
